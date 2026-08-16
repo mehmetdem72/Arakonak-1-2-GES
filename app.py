@@ -34,16 +34,18 @@ def _asset(*names):
 
 
 @st.cache_data(show_spinner=False)
-def _logo_black():
+def _logo(color):
     try:
         svg = _asset("logo.svg").read_text(encoding="utf-8")
-        svg = svg.replace("fill:#fff", "fill:#0a0a0a").replace('fill="#fff"', 'fill="#0a0a0a"')
+        if color == "black":
+            svg = svg.replace("fill:#fff", "fill:#0a0a0a").replace('fill="#fff"', 'fill="#0a0a0a"')
         return base64.b64encode(svg.encode()).decode()
     except Exception:
         return None
 
 
-LOGO_B = _logo_black()
+LOGO_WHITE = _logo("white")
+LOGO_BLACK = _logo("black")
 
 TEAL = "#22d3ee"; TEAL_D = "#0891b2"; INDIGO = "#8b5cf6"
 GREEN = "#34d399"; AMBER = "#fbbf24"; RED = "#fb7185"; SLATE = "#e5edf7"; MUTED = "#7e93b0"
@@ -94,7 +96,6 @@ def inject_css(theme="dark"):
       padding:10px 13px;border-radius:11px;margin:1px 6px;cursor:pointer;font-weight:700;font-size:13.5px;
       color:{t['railtxt']};transition:background .12s;}}
     section[data-testid="stSidebar"] [role="radiogroup"] label:hover{{background:{t['railhov']};}}
-    section[data-testid="stSidebar"] [role="radiogroup"] label div:first-child{{display:none;}}
     section[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked){{
       background:linear-gradient(120deg,{t['accd']},{t['acc']});color:#04222b;box-shadow:0 8px 18px rgba(34,211,238,.25);}}
     section[data-testid="stSidebar"] [role="radiogroup"] label:has(input:checked) *{{color:#04222b !important;}}
@@ -193,6 +194,25 @@ def set_progress(ids, plan=None, real=None, ac=None):
     persist_progress()
 
 
+def add_item(grp, disc, name, unit, qty, up, plan=0.0, real=0.0, ac=0.0):
+    df = st.session_state.df
+    n = 1
+    while f"user_{n}" in set(df["id"]):
+        n += 1
+    row = {"id": f"user_{n}", "grp": grp, "disc": disc.strip().upper(), "name": name.strip(),
+           "unit": unit.strip() or "adet", "qty": float(qty), "up": float(up),
+           "plan": max(0.0, min(100.0, float(plan))), "real": max(0.0, min(100.0, float(real))),
+           "ac": max(0.0, float(ac))}
+    st.session_state.df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+    persist_progress()
+
+
+def delete_items(ids):
+    df = st.session_state.df
+    st.session_state.df = df[~df["id"].isin(ids)].reset_index(drop=True)
+    persist_progress()
+
+
 meta = {
     "name": storage.get_setting(conn, "proj_name", "ARAKONAK GES"),
     "loc": storage.get_setting(conn, "proj_loc", "Muş / Bulanık"),
@@ -213,18 +233,18 @@ PAGES = ["Komuta Paneli", "İş Kalemleri", "Maliyet & EVM", "S-Eğrisi",
 ICON = {"Komuta Paneli": "▦", "İş Kalemleri": "▤", "Maliyet & EVM": "₺", "S-Eğrisi": "📈",
         "Stok": "📦", "İSG": "🦺", "Dışa Aktar": "⭳", "Veri": "🗄", "Ayarlar": "⚙"}
 with st.sidebar:
-    if LOGO_B:
-        st.markdown(f'<div class="rail-logo"><img src="data:image/svg+xml;base64,{LOGO_B}"/></div>',
+    _logo_b64 = LOGO_WHITE if theme == "dark" else LOGO_BLACK
+    if _logo_b64:
+        st.markdown(f'<div class="rail-logo"><img src="data:image/svg+xml;base64,{_logo_b64}"/></div>',
                     unsafe_allow_html=True)
     page = st.radio("Menü", [f"{ICON[p]}  {p}" for p in PAGES], label_visibility="collapsed")
     page = page.split("  ", 1)[1]
 
     st.markdown('<div class="rail-sec">TEMA</div>', unsafe_allow_html=True)
-    th = st.radio("Tema", ["🌙 Koyu", "☀️ Açık"], index=0 if theme == "dark" else 1,
-                  horizontal=True, label_visibility="collapsed", key="theme_sel")
-    new_theme = "dark" if th.startswith("🌙") else "light"
-    if new_theme != theme:
-        st.session_state.theme = new_theme
+    light_on = st.toggle("☀️ Açık tema", value=(theme == "light"), key="light_toggle")
+    want = "light" if light_on else "dark"
+    if want != theme:
+        st.session_state.theme = want
         st.rerun()
 
     st.markdown(f'<div class="rail-user">👤 <b>{user["name"]}</b><br>'
@@ -362,11 +382,35 @@ if page == "Komuta Paneli":
 elif page == "İş Kalemleri":
     kpi_ribbon()
     if ADMIN:
-        st.info("📅 **Günlük giriş:** Aşağıda **Plan %**, **Gerçek %** ve **Fiili Maliyet ($)** "
-                "hücrelerine bugünkü değerleri yazın. Her kayıt, bugünün tarihine **günlük anlık görüntü** "
-                "olarak işlenir ve S-Eğrisi bu günlük noktalardan oluşur.")
         st.markdown('<div class="panel-ttl">Manuel İş Kalemi Girişi — günlük</div>', unsafe_allow_html=True)
-        with st.expander("⚡ Toplu uygula — tüm kalemlere ya da bir disipline", expanded=True):
+        st.info("📅 **Günlük giriş:** Tablodaki **Plan %**, **Gerçek %**, **Fiili Maliyet ($)** hücrelerine "
+                "bugünkü değerleri yazın (kaydet gerekmez, yazınca işlenir → S-Eğrisi güncellenir). "
+                "Yeni poz eklemek için **➕ Yeni İş Kalemi Ekle**'yi kullanın.")
+
+        with st.expander("➕ Yeni İş Kalemi Ekle", expanded=False):
+            with st.form("add_item_form", clear_on_submit=True):
+                a1, a2, a3 = st.columns([1, 1, 2])
+                ai_grp = a1.selectbox("Grup", core.GROUPS)
+                disc_opts = sorted(base["disc"].unique().tolist())
+                ai_disc = a2.selectbox("Disiplin", disc_opts + ["➕ Yeni disiplin…"])
+                ai_disc_new = a3.text_input("Yeni disiplin adı (üstte 'Yeni disiplin' seçtiyseniz)", "")
+                ai_name = st.text_input("Poz Adı", "")
+                b1, b2, b3, b4, b5 = st.columns(5)
+                ai_unit = b1.text_input("Birim", "adet")
+                ai_qty = b2.number_input("Miktar", min_value=0.0, value=1.0, step=1.0)
+                ai_up = b3.number_input("Birim Fiyat ($)", min_value=0.0, value=0.0, step=100.0)
+                ai_plan = b4.number_input("Plan %", 0, 100, 0)
+                ai_real = b5.number_input("Gerçek %", 0, 100, 0)
+                submitted = st.form_submit_button("➕ Ekle", type="primary", use_container_width=True)
+            if submitted:
+                disc_final = ai_disc_new.strip() if ai_disc == "➕ Yeni disiplin…" else ai_disc
+                if not ai_name.strip() or not disc_final:
+                    st.error("Poz adı ve disiplin zorunlu.")
+                else:
+                    add_item(ai_grp, disc_final, ai_name, ai_unit, ai_qty, ai_up, ai_plan, ai_real)
+                    st.toast("Yeni iş kalemi eklendi."); st.rerun()
+
+        with st.expander("⚡ Toplu uygula — tüm kalemlere ya da bir disipline", expanded=False):
             qc1, qc2, qc3, qc4 = st.columns([2, 1, 1, 1])
             q_opts = ["★ TÜM KALEMLER"] + sorted(scoped["disc"].unique().tolist())
             q_disc = qc1.selectbox("Kapsam", q_opts, key="q_disc")
@@ -377,6 +421,13 @@ elif page == "İş Kalemleri":
                 sel = scoped["id"].tolist() if q_disc == "★ TÜM KALEMLER" else scoped[scoped["disc"] == q_disc]["id"].tolist()
                 set_progress(sel, plan=q_plan, real=q_real)
                 st.toast(f"{len(sel)} kalem güncellendi."); st.rerun()
+
+        with st.expander("🗑 İş Kalemi Sil", expanded=False):
+            del_map = {f'{r["disc"]} — {r["name"][:60]}': r["id"] for _, r in scoped.iterrows()}
+            del_sel = st.multiselect("Silinecek kalem(ler)", list(del_map.keys()))
+            if st.button("Seçilenleri sil", disabled=not del_sel):
+                delete_items([del_map[x] for x in del_sel])
+                st.toast(f"{len(del_sel)} kalem silindi."); st.rerun()
     else:
         st.info("Görüntüleyici modu: tablo salt-okunur.")
 
