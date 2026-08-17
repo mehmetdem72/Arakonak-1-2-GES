@@ -110,13 +110,21 @@ def inject_css(theme="dark"):
     .pagehd .sub{{font-size:12px;color:{t['muted']};font-weight:600;margin-top:3px;}}
 
     /* Kapsam dilimleyici */
-    [data-testid="stSegmentedControl"] button{{font-weight:800 !important;border-radius:10px !important;}}
+    /* Kapsam dilimleyici — okunur, neon */
+    [data-testid="stSegmentedControl"]{{background:transparent !important;}}
+    [data-testid="stSegmentedControl"] button{{font-weight:800 !important;border-radius:10px !important;
+      background:{t['railhov']} !important;border:1px solid {t['border']} !important;color:{t['text']} !important;
+      padding:7px 16px !important;}}
+    [data-testid="stSegmentedControl"] button *{{color:{t['text']} !important;}}
+    [data-testid="stSegmentedControl"] button:hover{{border-color:{t['acc']} !important;}}
     [data-testid="stSegmentedControl"] button[aria-checked="true"],
-    [data-testid="stSegmentedControl"] button[aria-selected="true"]{{
-      background:linear-gradient(120deg,{t['accd']},{t['acc']}) !important;color:#04222b !important;border:none !important;
-      box-shadow:0 6px 14px rgba(34,211,238,.3) !important;}}
+    [data-testid="stSegmentedControl"] button[aria-selected="true"],
+    [data-testid="stSegmentedControl"] button[kind="segmented_controlActive"]{{
+      background:linear-gradient(120deg,{t['accd']},{t['acc']}) !important;border:none !important;
+      box-shadow:0 6px 16px rgba(34,211,238,.4) !important;}}
     [data-testid="stSegmentedControl"] button[aria-checked="true"] *,
-    [data-testid="stSegmentedControl"] button[aria-selected="true"] *{{color:#04222b !important;}}
+    [data-testid="stSegmentedControl"] button[aria-selected="true"] *,
+    [data-testid="stSegmentedControl"] button[kind="segmented_controlActive"] *{{color:#04222b !important;}}
 
     /* KPI kartları */
     .kpi-grid{{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:16px;}}
@@ -321,17 +329,19 @@ def matrix_table(g: pd.DataFrame):
         rl, pl, sp = r["realPct"], r["planPct"], r["sapma"]
         col = TEAL if rl >= pl else RED
         if sp >= 0:
-            pill_bg, pill_c, pill_t = "#dcfce7", GREEN, "İYİ"
+            pill_bg, pill_c, pill_t = "rgba(52,211,153,.15)", GREEN, "İYİ"
         elif sp >= -6:
-            pill_bg, pill_c, pill_t = "#fef3c7", AMBER, "İZLE"
+            pill_bg, pill_c, pill_t = "rgba(251,191,36,.15)", AMBER, "İZLE"
         else:
-            pill_bg, pill_c, pill_t = "#ffe4e6", RED, "RİSK"
-        w = max(4, min(100, rl))
+            pill_bg, pill_c, pill_t = "rgba(251,113,133,.15)", RED, "RİSK"
+        w = max(0, min(100, rl))
         rows += (f'<tr><td class="mx-name">{r["disc"]}</td>'
-                 f'<td style="text-align:right;color:#37525c;font-weight:700">{core.fmt_money(r["budget"])}</td>'
-                 f'<td style="text-align:center;color:#6b8a90">%{pl:.0f}</td>'
-                 f'<td style="min-width:150px"><div class="mx-bar" style="width:{w:.0f}%;'
-                 f'background:linear-gradient(90deg,{col},{col})">%{rl:.0f}</div></td>'
+                 f'<td style="text-align:right;color:#9fc3e0;font-weight:700">{core.fmt_money(r["budget"])}</td>'
+                 f'<td style="text-align:center;color:#5f7a99">%{pl:.0f}</td>'
+                 f'<td style="min-width:170px"><div style="position:relative;background:#0e2233;border-radius:5px;'
+                 f'height:18px;overflow:hidden"><div style="position:absolute;left:0;top:0;height:100%;width:{w:.0f}%;'
+                 f'background:{col};border-radius:5px"></div><span style="position:absolute;left:8px;top:0;line-height:18px;'
+                 f'font-size:10px;font-weight:800;color:#e8f4ff">%{rl:.0f}</span></div></td>'
                  f'<td style="text-align:center;font-weight:800;color:{col}">{sp:+.0f}</td>'
                  f'<td style="text-align:center"><span class="mx-pill" style="background:{pill_bg};color:{pill_c}">{pill_t}</span></td></tr>')
     st.markdown(f"""<table class="mx"><tr>
@@ -369,7 +379,7 @@ if page == "Komuta Paneli":
     spi_arrow = "" if k["SPI"] is None else ("▲" if k["SPI"] >= 1 else "▼")
     spi_col = MUTED if k["SPI"] is None else (TEAL if k["SPI"] >= 1 else RED)
 
-    hero = st.columns([1, 1.25, 1.5], gap="medium")
+    hero = st.columns([1, 1.25, 1.35], gap="medium")
     with hero[0]:
         st.markdown(f"""
         <div class="kbox"><div class="kl">TOPLAM BÜTÇE</div>
@@ -392,10 +402,11 @@ if page == "Komuta Paneli":
         with st.container(border=True):
             st.markdown('<div class="panel-ttl">Grup Performans Göstergeleri</div>', unsafe_allow_html=True)
             st.plotly_chart(charts.group_gauges(gag), use_container_width=True, config=PLOT)
-        with st.container(border=True):
-            st.markdown('<div class="panel-ttl">Kümülatif S-Eğrisi (günlük)</div>', unsafe_allow_html=True)
-            st.plotly_chart(charts.s_curve(baseline, snaps, k["planPct"], k["ilerleme"]),
-                            use_container_width=True, config=PLOT)
+
+    with st.container(border=True):
+        st.markdown('<div class="panel-ttl">Kümülatif S-Eğrisi (günlük)</div>', unsafe_allow_html=True)
+        st.plotly_chart(charts.s_curve(baseline, snaps, k["planPct"], k["ilerleme"]),
+                        use_container_width=True, config=PLOT)
 
     with st.container(border=True):
         st.markdown('<div class="panel-ttl">Disiplin Matrisi — Koşullu Biçimlendirme</div>', unsafe_allow_html=True)
@@ -404,52 +415,39 @@ if page == "Komuta Paneli":
 elif page == "İş Kalemleri":
     kpi_ribbon()
     if ADMIN:
-        st.markdown('<div class="panel-ttl">Manuel İş Kalemi Girişi — günlük</div>', unsafe_allow_html=True)
-        st.info("📅 **Günlük giriş:** Tablodaki **Plan %**, **Gerçek %**, **Fiili Maliyet ($)** hücrelerine "
-                "bugünkü değerleri yazın (kaydet gerekmez, yazınca işlenir → S-Eğrisi güncellenir). "
-                "Yeni poz eklemek için **➕ Yeni İş Kalemi Ekle**'yi kullanın.")
-
-        with st.expander("➕ Yeni İş Kalemi Ekle", expanded=False):
-            with st.form("add_item_form", clear_on_submit=True):
-                a1, a2, a3 = st.columns([1, 1, 2])
-                ai_grp = a1.selectbox("Grup", core.GROUPS)
-                disc_opts = sorted(base["disc"].unique().tolist())
-                ai_disc = a2.selectbox("Disiplin", disc_opts + ["➕ Yeni disiplin…"])
-                ai_disc_new = a3.text_input("Yeni disiplin adı (üstte 'Yeni disiplin' seçtiyseniz)", "")
-                ai_name = st.text_input("Poz Adı", "")
-                b1, b2, b3, b4, b5 = st.columns(5)
-                ai_unit = b1.text_input("Birim", "adet")
-                ai_qty = b2.number_input("Miktar", min_value=0.0, value=1.0, step=1.0)
-                ai_up = b3.number_input("Birim Fiyat ($)", min_value=0.0, value=0.0, step=100.0)
-                ai_plan = b4.number_input("Plan %", 0, 100, 0)
-                ai_real = b5.number_input("Gerçek %", 0, 100, 0)
-                submitted = st.form_submit_button("➕ Ekle", type="primary", use_container_width=True)
-            if submitted:
-                disc_final = ai_disc_new.strip() if ai_disc == "➕ Yeni disiplin…" else ai_disc
-                if not ai_name.strip() or not disc_final:
-                    st.error("Poz adı ve disiplin zorunlu.")
-                else:
-                    add_item(ai_grp, disc_final, ai_name, ai_unit, ai_qty, ai_up, ai_plan, ai_real)
-                    st.toast("Yeni iş kalemi eklendi."); st.rerun()
-
-        with st.expander("⚡ Toplu uygula — tüm kalemlere ya da bir disipline", expanded=False):
-            qc1, qc2, qc3, qc4 = st.columns([2, 1, 1, 1])
-            q_opts = ["★ TÜM KALEMLER"] + sorted(scoped["disc"].unique().tolist())
-            q_disc = qc1.selectbox("Kapsam", q_opts, key="q_disc")
-            q_plan = qc2.number_input("Plan %", 0, 100, 0, key="q_plan")
-            q_real = qc3.number_input("Gerçek %", 0, 100, 0, key="q_real")
-            qc4.write(""); qc4.write("")
-            if qc4.button("Uygula", type="primary", use_container_width=True):
-                sel = scoped["id"].tolist() if q_disc == "★ TÜM KALEMLER" else scoped[scoped["disc"] == q_disc]["id"].tolist()
-                set_progress(sel, plan=q_plan, real=q_real)
-                st.toast(f"{len(sel)} kalem güncellendi."); st.rerun()
-
-        with st.expander("🗑 İş Kalemi Sil", expanded=False):
-            del_map = {f'{r["disc"]} — {r["name"][:60]}': r["id"] for _, r in scoped.iterrows()}
-            del_sel = st.multiselect("Silinecek kalem(ler)", list(del_map.keys()))
-            if st.button("Seçilenleri sil", disabled=not del_sel):
-                delete_items([del_map[x] for x in del_sel])
-                st.toast(f"{len(del_sel)} kalem silindi."); st.rerun()
+        st.caption("✏️ Düzenlemek için tablodaki **Plan %**, **Gerçek %** veya **Fiili Maliyet** hücresine "
+                   "çift tıklayıp değeri yazın, Enter'a basın. Değer anında kaydedilir ve grafiklere yansır.")
+        cadd, cdel = st.columns(2)
+        with cadd:
+            with st.expander("➕ Yeni İş Kalemi Ekle", expanded=False):
+                with st.form("add_item_form", clear_on_submit=True):
+                    ai_grp = st.selectbox("Grup", core.GROUPS)
+                    disc_opts = sorted(base["disc"].unique().tolist())
+                    ai_disc = st.selectbox("Disiplin", disc_opts + ["➕ Yeni disiplin…"])
+                    ai_disc_new = st.text_input("Yeni disiplin adı", "")
+                    ai_name = st.text_input("Poz Adı", "")
+                    b1, b2, b3 = st.columns(3)
+                    ai_unit = b1.text_input("Birim", "adet")
+                    ai_qty = b2.number_input("Miktar", min_value=0.0, value=1.0, step=1.0)
+                    ai_up = b3.number_input("Birim Fiyat ($)", min_value=0.0, value=0.0, step=100.0)
+                    c1, c2 = st.columns(2)
+                    ai_plan = c1.number_input("Plan %", 0, 100, 0)
+                    ai_real = c2.number_input("Gerçek %", 0, 100, 0)
+                    submitted = st.form_submit_button("➕ Ekle", type="primary", use_container_width=True)
+                if submitted:
+                    disc_final = ai_disc_new.strip() if ai_disc == "➕ Yeni disiplin…" else ai_disc
+                    if not ai_name.strip() or not disc_final:
+                        st.error("Poz adı ve disiplin zorunlu.")
+                    else:
+                        add_item(ai_grp, disc_final, ai_name, ai_unit, ai_qty, ai_up, ai_plan, ai_real)
+                        st.toast("Yeni iş kalemi eklendi."); st.rerun()
+        with cdel:
+            with st.expander("🗑 İş Kalemi Sil", expanded=False):
+                del_map = {f'{r["disc"]} — {r["name"][:50]}': r["id"] for _, r in scoped.iterrows()}
+                del_sel = st.multiselect("Silinecek kalem(ler)", list(del_map.keys()))
+                if st.button("Seçilenleri sil", disabled=not del_sel, use_container_width=True):
+                    delete_items([del_map[x] for x in del_sel])
+                    st.toast(f"{len(del_sel)} kalem silindi."); st.rerun()
     else:
         st.info("Görüntüleyici modu: tablo salt-okunur.")
 
@@ -463,22 +461,24 @@ elif page == "İş Kalemleri":
     if search.strip():
         view = view[view["name"].str.contains(search.strip(), case=False, na=False)]
 
-    show = view[["id", "disc", "name", "unit", "qty", "up", "tutar", "plan", "real", "ac", "comp", "kalan", "durum"]].copy()
+    # düzenlenebilir kolonlar (Plan/Gerçek/Fiili) sola yakın
+    show = view[["id", "disc", "name", "plan", "real", "ac", "comp", "kalan", "unit", "qty", "up", "tutar", "durum"]].copy()
     edited = st.data_editor(
         show, use_container_width=True, hide_index=True, num_rows="fixed", key="editor", disabled=not ADMIN,
+        height=460,
         column_config={
             "id": None,
             "disc": st.column_config.TextColumn("Disiplin", disabled=True),
             "name": st.column_config.TextColumn("Poz Adı", disabled=True, width="large"),
+            "plan": st.column_config.NumberColumn("✏️ Plan %", min_value=0, max_value=100, step=1, format="%d"),
+            "real": st.column_config.NumberColumn("✏️ Gerçek %", min_value=0, max_value=100, step=1, format="%d"),
+            "ac": st.column_config.NumberColumn("✏️ Fiili Maliyet ($)", min_value=0, step=1000, format="$%d"),
+            "comp": st.column_config.NumberColumn("Kazanılan ($)", disabled=True, format="$%.0f"),
+            "kalan": st.column_config.NumberColumn("Kalan ($)", disabled=True, format="$%.0f"),
             "unit": st.column_config.TextColumn("Birim", disabled=True),
             "qty": st.column_config.NumberColumn("Miktar", disabled=True, format="%.2f"),
             "up": st.column_config.NumberColumn("B.Fiyat ($)", disabled=True, format="%.2f"),
             "tutar": st.column_config.NumberColumn("Toplam ($)", disabled=True, format="$%.0f"),
-            "plan": st.column_config.NumberColumn("✏️ Plan %", min_value=0, max_value=100, step=1, format="%.0f"),
-            "real": st.column_config.NumberColumn("✏️ Gerçek %", min_value=0, max_value=100, step=1, format="%.0f"),
-            "ac": st.column_config.NumberColumn("✏️ Fiili Maliyet ($)", min_value=0, step=1000, format="$%.0f"),
-            "comp": st.column_config.NumberColumn("Kazanılan ($)", disabled=True, format="$%.0f"),
-            "kalan": st.column_config.NumberColumn("Kalan ($)", disabled=True, format="$%.0f"),
             "durum": st.column_config.TextColumn("Durum", disabled=True)})
     if ADMIN:
         updates = 0
@@ -491,7 +491,7 @@ elif page == "İş Kalemleri":
                 updates += 1
         if updates:
             persist_progress()
-            st.toast(f"{updates} satır güncellendi · bugünün günlük kaydı yenilendi."); st.rerun()
+            st.toast(f"{updates} satır güncellendi · günlük kayıt yenilendi."); st.rerun()
 
 elif page == "Maliyet & EVM":
     kpi_ribbon()
