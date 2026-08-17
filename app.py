@@ -47,21 +47,21 @@ def _logo(color):
 LOGO_WHITE = _logo("white")
 LOGO_BLACK = _logo("black")
 
-TEAL = "#22d3ee"; TEAL_D = "#0891b2"; INDIGO = "#8b5cf6"
-GREEN = "#34d399"; AMBER = "#fbbf24"; RED = "#fb7185"; SLATE = "#e5edf7"; MUTED = "#7e93b0"
+TEAL = "#2dd4bf"; TEAL_D = "#14b8a6"; INDIGO = "#0e7490"
+GREEN = "#34d399"; AMBER = "#fbbf24"; RED = "#fb7185"; SLATE = "#e6f4f4"; MUTED = "#7fb0b3"
 
 
 # ────────────────────── STİL (Açık Kurumsal) ──────────────────────
 # ────────────────────── TEMA PALETLERİ ──────────────────────
 THEMES = {
     "dark": dict(
-        bg="radial-gradient(1000px 560px at 8% -8%, rgba(34,211,238,.10), transparent 60%),"
-           "radial-gradient(900px 560px at 100% -4%, rgba(139,92,246,.10), transparent 55%),"
-           "linear-gradient(160deg,#0a1220 0%,#0b1626 60%,#0a1220 100%)",
-        text="#e5edf7", muted="#7e93b0", panel="#0f1a2e", border="#1c2942",
-        rail="#0d1626", railb="#1b2740", railtxt="#8fa3bd", railhov="#111d33",
-        acc="#22d3ee", acc2="#8b5cf6", accd="#0891b2", ttl="#cfe3f7",
-        rowb="#17223a", rowh="#131f36", metricbg="#0f1a2e"),
+        bg="radial-gradient(1000px 560px at 8% -8%, rgba(45,212,191,.12), transparent 60%),"
+           "radial-gradient(900px 560px at 100% -4%, rgba(34,211,238,.12), transparent 55%),"
+           "linear-gradient(160deg,#071815 0%,#0a1f1d 60%,#08201e 100%)",
+        text="#e6f4f4", muted="#7fb0b3", panel="#0e1f1e", border="#183330",
+        rail="#0c1a19", railb="#173230", railtxt="#8fb3b8", railhov="#122826",
+        acc="#14b8a6", acc2="#2dd4bf", accd="#0e7490", ttl="#c7f0ec",
+        rowb="#152c2a", rowh="#122624", metricbg="#0e1f1e"),
     "light": dict(
         bg="radial-gradient(1000px 560px at 8% -8%, rgba(13,148,136,.10), transparent 60%),"
            "radial-gradient(900px 560px at 100% -4%, rgba(99,102,241,.08), transparent 55%),"
@@ -287,13 +287,13 @@ def kpi_ribbon():
         sc, sd = RED, "▼ hedef altı"
     st.markdown(f"""
     <div class="kpi-grid">
-      <div class="kpi-card" style="--c:linear-gradient(90deg,#38bdf8,#22d3ee)">
+      <div class="kpi-card" style="--c:linear-gradient(90deg,#22d3ee,#2dd4bf)">
         <div class="kpi-label">TOPLAM BÜTÇE (BAC)</div><div class="kpi-value">{core.fmt_money(k['budget'])}</div>
         <div class="kpi-sub" style="color:#8aa">Sözleşme bedeli</div></div>
       <div class="kpi-card" style="--c:linear-gradient(90deg,{TEAL},#14b8a6)">
         <div class="kpi-label">KAZANILAN (EV)</div><div class="kpi-value" style="color:{TEAL}">{core.fmt_money(k['comp'])}</div>
         <div class="kpi-sub" style="color:{TEAL}">▲ %{k['ilerleme']:.1f}</div></div>
-      <div class="kpi-card" style="--c:linear-gradient(90deg,{INDIGO},#818cf8)">
+      <div class="kpi-card" style="--c:linear-gradient(90deg,#0e7490,#14b8a6)">
         <div class="kpi-label">PLANA GÖRE</div><div class="kpi-value">%{k['planPct']:.1f}</div>
         <div class="kpi-sub" style="color:{AMBER}">{abs(k['ilerleme']-k['planPct']):.0f} puan {'geride' if k['ilerleme']<k['planPct'] else 'önde'}</div></div>
       <div class="kpi-card" style="--c:linear-gradient(90deg,{AMBER},#f59e0b)">

@@ -26,12 +26,12 @@ def set_theme(name="dark"):
         C_GRID = "rgba(15,43,58,.08)"; C_HOVER = "#0f2b3a"
         C_TRACK = "#eef2f6"; C_TICK = "#7a86b8"
     else:
-        C_OK, C_OK_D = "#22d3ee", "#0891b2"
-        C_REM, C_PLAN, C_PLAN_D = "#fb7185", "#8b5cf6", "#7c3aed"
-        C_AMB, C_PUR = "#fbbf24", "#a78bfa"
-        C_INK, C_INK2 = "#e5edf7", "#a7bad4"
-        C_GRID = "rgba(255,255,255,.07)"; C_HOVER = "#0f1a2e"
-        C_TRACK = "rgba(255,255,255,.08)"; C_TICK = "#8fa3bd"
+        C_OK, C_OK_D = "#2dd4bf", "#14b8a6"
+        C_REM, C_PLAN, C_PLAN_D = "#fb7185", "#0e7490", "#155e75"
+        C_AMB, C_PUR = "#fbbf24", "#5eead4"
+        C_INK, C_INK2 = "#e6f4f4", "#a7c9cc"
+        C_GRID = "rgba(255,255,255,.07)"; C_HOVER = "#0d201f"
+        C_TRACK = "rgba(255,255,255,.08)"; C_TICK = "#8fb3b8"
 
 
 def _style(fig, height, corner=6, legend=True):
@@ -131,7 +131,7 @@ def plan_vs_real(g: pd.DataFrame):
     real_colors = [C_REM if r < p else C_OK for r, p in zip(d["realPct"], d["planPct"])]
     fig = go.Figure()
     fig.add_bar(y=labels, x=d["planPct"].round(1), orientation="h", name="Plan",
-                marker=dict(color="rgba(139,92,246,.28)", line=dict(color=C_PLAN, width=1)))
+                marker=dict(color="rgba(14,116,144,.30)", line=dict(color=C_PLAN, width=1)))
     fig.add_bar(y=labels, x=d["realPct"].round(1), orientation="h", name="Gerçek",
                 marker=dict(color=real_colors), text=[f"%{v:.0f}" for v in d["realPct"]],
                 textposition="outside", textfont=dict(size=10, color=C_INK2, family=FONT), cliponaxis=False)
@@ -147,7 +147,7 @@ def group_progress(gag: pd.DataFrame):
     plan = gag["planPct"].round(1).tolist(); real = gag["realPct"].round(1).tolist()
     fig = go.Figure()
     fig.add_bar(x=names, y=plan, name="Plan",
-                marker=dict(color="rgba(139,92,246,.28)", line=dict(color=C_PLAN, width=1)),
+                marker=dict(color="rgba(14,116,144,.30)", line=dict(color=C_PLAN, width=1)),
                 text=[f"%{v:.1f}" for v in plan], textposition="outside",
                 textfont=dict(color=C_PUR, family=FONT, size=11), cliponaxis=False)
     fig.add_bar(x=names, y=real, name="Gerçek", marker=dict(color=C_OK),
@@ -288,7 +288,7 @@ def group_gauges(gag: pd.DataFrame):
     """Grup başına yarım-daire performans göstergeleri (tek figürde)."""
     if gag.empty:
         return _style(go.Figure(), 220)
-    cols = ["#22d3ee", "#34d399", "#a78bfa"]  # camgöbeği / zümrüt / mor (belirgin)
+    cols = ["#2dd4bf", "#22d3ee", "#34d399"]  # turkuaz / camgöbeği / zümrüt
     n = len(gag)
     fig = go.Figure()
     for i, (_, r) in enumerate(gag.iterrows()):
@@ -332,7 +332,7 @@ def heatmap_disc_group(df_all: pd.DataFrame, top: int = 8):
     fig = go.Figure(go.Heatmap(
         z=z, x=labels, y=disc_lbl, text=text, texttemplate="%{text}",
         textfont=dict(family=FONT, size=11, color="#0b1220"),
-        colorscale=[[0, "#fb7185"], [0.5, "#7c3aed"], [1, "#22d3ee"]], zmin=0, zmax=100,
+        colorscale=[[0, "#fb7185"], [0.5, "#0e7490"], [1, "#2dd4bf"]], zmin=0, zmax=100,
         xgap=5, ygap=5, showscale=False, hoverongaps=False,
         hovertemplate="<b>%{y}</b> · %{x}<br>İlerleme %{z:.0f}%<extra></extra>"))
     fig.update_layout(height=300, margin=dict(l=6, r=6, t=8, b=6),
