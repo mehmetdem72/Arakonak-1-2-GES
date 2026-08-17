@@ -26,12 +26,12 @@ def set_theme(name="dark"):
         C_GRID = "rgba(15,43,58,.08)"; C_HOVER = "#0f2b3a"
         C_TRACK = "#eef2f6"; C_TICK = "#7a86b8"
     else:
-        C_OK, C_OK_D = "#2dd4bf", "#14b8a6"
-        C_REM, C_PLAN, C_PLAN_D = "#fb7185", "#0e7490", "#155e75"
-        C_AMB, C_PUR = "#fbbf24", "#5eead4"
-        C_INK, C_INK2 = "#e6f4f4", "#a7c9cc"
-        C_GRID = "rgba(255,255,255,.07)"; C_HOVER = "#0d201f"
-        C_TRACK = "rgba(255,255,255,.08)"; C_TICK = "#8fb3b8"
+        C_OK, C_OK_D = "#22d3ee", "#0891b2"
+        C_REM, C_PLAN, C_PLAN_D = "#fb7185", "#a78bfa", "#7c3aed"
+        C_AMB, C_PUR = "#fbbf24", "#67e8f9"
+        C_INK, C_INK2 = "#dbeafe", "#9fc3e0"
+        C_GRID = "rgba(34,211,238,.08)"; C_HOVER = "#0a1422"
+        C_TRACK = "rgba(34,211,238,.10)"; C_TICK = "#5f7a99"
 
 
 def _style(fig, height, corner=6, legend=True):
@@ -288,7 +288,7 @@ def group_gauges(gag: pd.DataFrame):
     """Grup başına yarım-daire performans göstergeleri (tek figürde)."""
     if gag.empty:
         return _style(go.Figure(), 220)
-    cols = ["#2dd4bf", "#22d3ee", "#34d399"]  # turkuaz / camgöbeği / zümrüt
+    cols = ["#22d3ee", "#34d399", "#a78bfa"]  # camgobegi / zumrut / mor
     n = len(gag)
     fig = go.Figure()
     for i, (_, r) in enumerate(gag.iterrows()):

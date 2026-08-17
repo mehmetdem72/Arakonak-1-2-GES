@@ -55,13 +55,13 @@ GREEN = "#34d399"; AMBER = "#fbbf24"; RED = "#fb7185"; SLATE = "#e6f4f4"; MUTED 
 # ────────────────────── TEMA PALETLERİ ──────────────────────
 THEMES = {
     "dark": dict(
-        bg="radial-gradient(1000px 560px at 8% -8%, rgba(45,212,191,.12), transparent 60%),"
-           "radial-gradient(900px 560px at 100% -4%, rgba(34,211,238,.12), transparent 55%),"
-           "linear-gradient(160deg,#071815 0%,#0a1f1d 60%,#08201e 100%)",
-        text="#e6f4f4", muted="#7fb0b3", panel="#0e1f1e", border="#183330",
-        rail="#0c1a19", railb="#173230", railtxt="#8fb3b8", railhov="#122826",
-        acc="#14b8a6", acc2="#2dd4bf", accd="#0e7490", ttl="#c7f0ec",
-        rowb="#152c2a", rowh="#122624", metricbg="#0e1f1e"),
+        bg="radial-gradient(760px 520px at 50% -18%, rgba(34,211,238,.16), transparent 60%),"
+           "radial-gradient(700px 500px at 100% 8%, rgba(139,92,246,.10), transparent 55%),"
+           "linear-gradient(160deg,#04060d,#05080f 60%,#04060d)",
+        text="#dbeafe", muted="#5f7a99", panel="#0a1422", border="#12324a",
+        rail="#070d18", railb="#12324a", railtxt="#5f9bbf", railhov="#0d1a2c",
+        acc="#22d3ee", acc2="#0891b2", accd="#0891b2", ttl="#67e8f9",
+        rowb="#0e2233", rowh="#0c1a2a", metricbg="#0a1422"),
     "light": dict(
         bg="radial-gradient(1000px 560px at 8% -8%, rgba(13,148,136,.10), transparent 60%),"
            "radial-gradient(900px 560px at 100% -4%, rgba(99,102,241,.08), transparent 55%),"
@@ -149,6 +149,16 @@ def inject_css(theme="dark"):
       padding:12px 15px;box-shadow:0 4px 16px rgba(0,0,0,.12);}}
     div[data-testid="stMetric"] *{{color:{t['text']} !important;}}
     div[data-testid="stMetricLabel"] *{{color:{t['muted']} !important;}}
+
+    /* ── NEON KOKPİT (Tasarım 3) ── */
+    .neon-title{{font-size:24px;font-weight:900;letter-spacing:2px;color:{t['acc']};
+      text-shadow:0 0 18px rgba(34,211,238,.55);margin:0;}}
+    .kbox{{border:1px solid {t['border']};border-radius:14px;padding:15px 17px;margin-bottom:12px;
+      background:linear-gradient(180deg,rgba(34,211,238,.05),transparent);box-shadow:inset 0 0 22px rgba(34,211,238,.05);}}
+    .kbox .kl{{font-size:9.5px;font-weight:800;color:{t['muted']};letter-spacing:1px;}}
+    .kbox .kv{{font-size:26px;font-weight:900;margin-top:3px;text-shadow:0 0 14px rgba(34,211,238,.35);}}
+    .nchip{{display:inline-block;border:1px solid {t['border']};border-radius:10px;padding:6px 12px;
+      margin:2px 5px 0 0;font-size:11.5px;font-weight:800;color:#9fc3e0;}}
     @media (max-width:1250px){{.kpi-grid{{grid-template-columns:repeat(2,1fr);}}}}
     </style>""", unsafe_allow_html=True)
 
@@ -351,33 +361,45 @@ def risk_table(dl: pd.DataFrame):
 
 # ══════════════════════ SAYFALAR ══════════════════════
 if page == "Komuta Paneli":
-    kpi_ribbon()
+    g = core.disc_agg(base, scope)
     gag = core.group_agg(base)
     snaps = core.s_curve_from_snapshots(storage.load_snapshots(conn, scope))
     baseline = core.s_curve_baseline(k["BAC"], meta["start"], meta["end"])
+    spi = "—" if k["SPI"] is None else f"{k['SPI']:.2f}"
+    spi_arrow = "" if k["SPI"] is None else ("▲" if k["SPI"] >= 1 else "▼")
+    spi_col = MUTED if k["SPI"] is None else (TEAL if k["SPI"] >= 1 else RED)
 
-    c1, c2 = st.columns([1.25, 1], gap="medium")
-    with c1:
+    hero = st.columns([1, 1.25, 1.5], gap="medium")
+    with hero[0]:
+        st.markdown(f"""
+        <div class="kbox"><div class="kl">TOPLAM BÜTÇE</div>
+          <div class="kv" style="color:#38bdf8">{core.fmt_money(k['budget'])}</div></div>
+        <div class="kbox"><div class="kl">KAZANILAN (EV)</div>
+          <div class="kv" style="color:#22d3ee">{core.fmt_money(k['comp'])}</div></div>
+        <div class="kbox"><div class="kl">KALAN İŞ</div>
+          <div class="kv" style="color:#fb7185">{core.fmt_money(k['kalan'])}</div></div>
+        """, unsafe_allow_html=True)
+    with hero[1]:
         with st.container(border=True):
-            st.markdown('<div class="panel-ttl">Kümülatif İlerleme S-Eğrisi (günlük)</div>', unsafe_allow_html=True)
-            st.plotly_chart(charts.s_curve(baseline, snaps, k["planPct"], k["ilerleme"]),
+            st.markdown('<div class="panel-ttl">Genel İlerleme</div>', unsafe_allow_html=True)
+            st.plotly_chart(charts.progress_donut(k["ilerleme"], k["planPct"]),
                             use_container_width=True, config=PLOT)
-    with c2:
+            st.markdown(f'<div style="text-align:center">'
+                        f'<span class="nchip">PLANA GÖRE %{k["planPct"]:.0f}</span>'
+                        f'<span class="nchip" style="color:{spi_col}">SPI {spi} {spi_arrow}</span></div>',
+                        unsafe_allow_html=True)
+    with hero[2]:
         with st.container(border=True):
             st.markdown('<div class="panel-ttl">Grup Performans Göstergeleri</div>', unsafe_allow_html=True)
             st.plotly_chart(charts.group_gauges(gag), use_container_width=True, config=PLOT)
-            st.markdown('<div style="text-align:center;color:#7e93b0;font-size:10px;margin-top:-4px">'
-                        'Kazanılan değer / bütçe (%) · sarı çizgi = plan hedefi</div>', unsafe_allow_html=True)
+        with st.container(border=True):
+            st.markdown('<div class="panel-ttl">Kümülatif S-Eğrisi (günlük)</div>', unsafe_allow_html=True)
+            st.plotly_chart(charts.s_curve(baseline, snaps, k["planPct"], k["ilerleme"]),
+                            use_container_width=True, config=PLOT)
 
-    c3, c4 = st.columns(2, gap="medium")
-    with c3:
-        with st.container(border=True):
-            st.markdown('<div class="panel-ttl">İlerleme Isı Haritası — Disiplin × Grup</div>', unsafe_allow_html=True)
-            st.plotly_chart(charts.heatmap_disc_group(base), use_container_width=True, config=PLOT)
-    with c4:
-        with st.container(border=True):
-            st.markdown('<div class="panel-ttl">En Kritik Geciken İşler ($ risk)</div>', unsafe_allow_html=True)
-            risk_table(core.delayed_items(scoped))
+    with st.container(border=True):
+        st.markdown('<div class="panel-ttl">Disiplin Matrisi — Koşullu Biçimlendirme</div>', unsafe_allow_html=True)
+        matrix_table(g)
 
 elif page == "İş Kalemleri":
     kpi_ribbon()
