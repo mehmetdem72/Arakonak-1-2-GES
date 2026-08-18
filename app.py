@@ -109,22 +109,26 @@ def inject_css(theme="dark"):
     .pagehd h1{{font-size:23px;font-weight:900;color:{t['text']};margin:0;background:none;}}
     .pagehd .sub{{font-size:12px;color:{t['muted']};font-weight:600;margin-top:3px;}}
 
-    /* Kapsam dilimleyici */
-    /* Kapsam dilimleyici — okunur, neon */
-    [data-testid="stSegmentedControl"]{{background:transparent !important;}}
-    [data-testid="stSegmentedControl"] button{{font-weight:800 !important;border-radius:10px !important;
-      background:{t['railhov']} !important;border:1px solid {t['border']} !important;color:{t['text']} !important;
-      padding:7px 16px !important;}}
-    [data-testid="stSegmentedControl"] button *{{color:{t['text']} !important;}}
-    [data-testid="stSegmentedControl"] button:hover{{border-color:{t['acc']} !important;}}
-    [data-testid="stSegmentedControl"] button[aria-checked="true"],
-    [data-testid="stSegmentedControl"] button[aria-selected="true"],
-    [data-testid="stSegmentedControl"] button[kind="segmented_controlActive"]{{
-      background:linear-gradient(120deg,{t['accd']},{t['acc']}) !important;border:none !important;
-      box-shadow:0 6px 16px rgba(34,211,238,.4) !important;}}
-    [data-testid="stSegmentedControl"] button[aria-checked="true"] *,
-    [data-testid="stSegmentedControl"] button[aria-selected="true"] *,
-    [data-testid="stSegmentedControl"] button[kind="segmented_controlActive"] *{{color:#04222b !important;}}
+    /* Kapsam butonları — okunur, tamamen kontrol bizde (primaryColor'dan bağımsız) */
+    div[data-testid="stButton"] button[kind="secondary"],
+    div[data-testid="stFormSubmitButton"] button[kind="secondary"],
+    div[data-testid="stDownloadButton"] button{{
+      font-weight:800 !important;border-radius:10px !important;
+      background:{t['railhov']} !important;border:1px solid {t['border']} !important;
+      color:{t['text']} !important;box-shadow:none !important;}}
+    div[data-testid="stButton"] button[kind="secondary"]:hover,
+    div[data-testid="stDownloadButton"] button:hover{{
+      border-color:{t['acc']} !important;color:{t['acc']} !important;}}
+    div[data-testid="stButton"] button[kind="primary"],
+    div[data-testid="stFormSubmitButton"] button[kind="primary"]{{
+      font-weight:800 !important;border-radius:10px !important;
+      background:linear-gradient(120deg,{t['accd']},{t['acc']}) !important;
+      color:#04222b !important;border:none !important;
+      box-shadow:0 6px 16px rgba(34,211,238,.35) !important;}}
+    div[data-testid="stButton"] button[kind="primary"] *,
+    div[data-testid="stFormSubmitButton"] button[kind="primary"] *{{color:#04222b !important;}}
+    div[data-testid="stButton"] button[kind="primary"]:hover,
+    div[data-testid="stFormSubmitButton"] button[kind="primary"]:hover{{filter:brightness(1.08);}}
 
     /* KPI kartları */
     .kpi-grid{{display:grid;grid-template-columns:repeat(5,1fr);gap:14px;margin-bottom:16px;}}
@@ -290,8 +294,17 @@ with head_l:
       <div class="sub">{meta['name']} · Canlı EPC İlerleme &amp; Bütçe · {date.today().strftime('%d.%m.%Y')}</div>
     </div></div>""", unsafe_allow_html=True)
 with head_r:
-    scope_label = st.segmented_control("Kapsam", ["Tümü", "GES-1", "GES-2", "ORTAK"],
-                                       default="Tümü", key="scope", label_visibility="collapsed") or "Tümü"
+    if "scope_sel" not in st.session_state:
+        st.session_state.scope_sel = "Tümü"
+    st.markdown('<div class="scope-btns">', unsafe_allow_html=True)
+    sc_cols = st.columns(4, gap="small")
+    for _i, _lb in enumerate(["Tümü", "GES-1", "GES-2", "ORTAK"]):
+        _typ = "primary" if st.session_state.scope_sel == _lb else "secondary"
+        if sc_cols[_i].button(_lb, key=f"scb_{_lb}", type=_typ, use_container_width=True):
+            st.session_state.scope_sel = _lb
+            st.rerun()
+    st.markdown('</div>', unsafe_allow_html=True)
+    scope_label = st.session_state.scope_sel
 scope = core.SCOPE_MAP[scope_label]
 
 base = core.enrich(st.session_state.df)
@@ -458,8 +471,9 @@ if page == "Komuta Paneli":
 elif page == "İş Kalemleri":
     kpi_ribbon()
     if ADMIN:
-        st.caption("✏️ Düzenlemek için tablodaki **Plan %**, **Gerçek %** veya **Fiili Maliyet** hücresine "
-                   "çift tıklayıp değeri yazın, Enter'a basın. Değer anında kaydedilir ve grafiklere yansır.")
+        st.caption("✏️ **Manuel giriş:** Aşağıdaki **Düzenleme modu**'nu açın; kalemler **Plan % / Gerçek % / "
+                   "Fiili Maliyet** kutularıyla açılır. Değerleri yazıp **💾 Kaydet**'e basın — grafiklere anında yansır. "
+                   "İstersen önce **Disiplin** seçip listeyi daraltabilirsin.")
         cadd, cdel = st.columns(2)
         with cadd:
             with st.expander("➕ Yeni İş Kalemi Ekle", expanded=False):
@@ -508,13 +522,27 @@ elif page == "İş Kalemleri":
                 f'<b>{len(view)}</b> kalem · Toplam <b>{core.fmt_money(view["tutar"].sum())}</b></div>',
                 unsafe_allow_html=True)
 
-    if ADMIN and 0 < len(view) <= 60:
+    edit_mode = False
+    if ADMIN:
+        edit_mode = st.toggle("✏️ Düzenleme modu", value=False,
+                              help="Açıkken kalemler düzenlenebilir forma dönüşür; kapalıyken salt görünüm.")
+
+    if ADMIN and edit_mode and len(view) > 0:
+        PAGE = 40
+        total = len(view)
+        sl = view
+        if total > PAGE:
+            pages = (total + PAGE - 1) // PAGE
+            pg = st.number_input(f"Sayfa (her sayfada {PAGE} kalem · toplam {pages} sayfa)",
+                                 min_value=1, max_value=pages, value=1, step=1)
+            sl = view.iloc[(pg - 1) * PAGE: pg * PAGE]
+            st.caption(f"{(pg-1)*PAGE+1}–{min(pg*PAGE, total)} arası kalemler gösteriliyor.")
         with st.form("edit_items", border=False):
             h = st.columns([5, 1.3, 1.3, 1.8])
             h[0].markdown("**Poz Adı**"); h[1].markdown("**Plan %**")
             h[2].markdown("**Gerçek %**"); h[3].markdown("**Fiili Maliyet ($)**")
             edits = {}
-            for _, r in view.iterrows():
+            for _, r in sl.iterrows():
                 c = st.columns([5, 1.3, 1.3, 1.8])
                 c[0].markdown(f'<div class="row-edit" style="font-size:12px;padding-top:8px;color:#dbeafe">'
                               f'{r["name"][:80]}</div>', unsafe_allow_html=True)
@@ -526,22 +554,30 @@ elif page == "İş Kalemleri":
             saved = st.form_submit_button("💾 Kaydet — grafiklere yansıt", type="primary", use_container_width=True)
         if saved:
             cur = st.session_state.df.set_index("id")
+            n_upd = 0
             for rid, (p, rl, ac) in edits.items():
                 old = cur.loc[rid]
                 nm = str(old["name"])[:40]
+                changed = False
                 if abs(float(p) - float(old["plan"])) > 1e-9:
-                    storage.log_change(conn, user["username"], nm, "Plan %", f"{old['plan']:.0f}", f"{p:.0f}")
+                    storage.log_change(conn, user["username"], nm, "Plan %", f"{old['plan']:.0f}", f"{p:.0f}"); changed = True
                 if abs(float(rl) - float(old["real"])) > 1e-9:
-                    storage.log_change(conn, user["username"], nm, "Gerçek %", f"{old['real']:.0f}", f"{rl:.0f}")
+                    storage.log_change(conn, user["username"], nm, "Gerçek %", f"{old['real']:.0f}", f"{rl:.0f}"); changed = True
                 if abs(float(ac) - float(old["ac"])) > 1e-6:
-                    storage.log_change(conn, user["username"], nm, "Fiili Maliyet", f"{old['ac']:.0f}", f"{ac:.0f}")
-                st.session_state.df.loc[st.session_state.df["id"] == rid, ["plan", "real", "ac"]] = [float(p), float(rl), float(ac)]
-            persist_progress()
-            st.toast("Kaydedildi · grafikler + kayıt defteri güncellendi."); st.rerun()
+                    storage.log_change(conn, user["username"], nm, "Fiili Maliyet", f"{old['ac']:.0f}", f"{ac:.0f}"); changed = True
+                if changed:
+                    st.session_state.df.loc[st.session_state.df["id"] == rid, ["plan", "real", "ac"]] = [float(p), float(rl), float(ac)]
+                    n_upd += 1
+            if n_upd:
+                persist_progress()
+                st.toast(f"{n_upd} kalem kaydedildi · grafikler + kayıt defteri güncellendi.")
+            else:
+                st.toast("Değişiklik yok.")
+            st.rerun()
     else:
         if ADMIN:
-            st.info(f"📋 {len(view)} kalem listeleniyor (salt görünüm). **Günlük manuel giriş** için "
-                    f"üstten bir **Disiplin** seçin veya arayın — 60'tan az kalem gelince düzenleme formu açılır.")
+            st.info("📋 Salt görünüm. Değer girmek için yukarıdaki **✏️ Düzenleme modu**'nu açın "
+                    "(istersen önce Disiplin seçip listeyi daralt).")
         items_table_html(view)
 
 elif page == "Maliyet & EVM":
