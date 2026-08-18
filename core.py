@@ -202,3 +202,113 @@ def per_scope_kpis(base: pd.DataFrame) -> dict:
             "bac": b,
         }
     return out
+
+
+def narrative(k: dict, scope_label: str = "Proje") -> str:
+    """Otomatik yönetici özeti cümlesi."""
+    ev, pl = k["ilerleme"], k["planPct"]
+    diff = ev - pl
+    yon = "planında" if abs(diff) < 0.5 else (f"{abs(diff):.0f} puan önde" if diff > 0 else f"{abs(diff):.0f} puan geride")
+    spi_txt = "—" if k["SPI"] is None else f"{k['SPI']:.2f}"
+    s = (f"{scope_label} <b>%{ev:.1f}</b> ilerlemede; plana göre <b>{yon}</b> (SPI {spi_txt}). ")
+    if k["has_cost"] and k["CPI"]:
+        cpi = k["CPI"]
+        s += ("Maliyet performansı " + ("hedefin üzerinde" if cpi >= 1 else "hedefin altında")
+              + f" (CPI {cpi:.2f}); tahmini toplam maliyet <b>{fmt_money(k['EAC'])}</b>. ")
+    else:
+        s += "Maliyet metrikleri için fiili maliyet (AC) girilmeli. "
+    return s
+
+
+def alerts(df: pd.DataFrame, k: dict) -> list:
+    """Eşik uyarıları — (seviye, mesaj)."""
+    out = []
+    if k["SPI"] is not None and k["SPI"] < 0.9:
+        out.append(("risk", f"Zaman performansı düşük: SPI {k['SPI']:.2f} (<0.90) — proje planın gerisinde."))
+    if k["has_cost"] and k["CPI"] is not None and k["CPI"] < 0.9:
+        out.append(("risk", f"Maliyet performansı düşük: CPI {k['CPI']:.2f} (<0.90) — bütçe aşımı riski."))
+    d = df.copy()
+    d["planW"] = d["tutar"] * d["plan"] / 100
+    d["realW"] = d["tutar"] * d["real"] / 100
+    geride = d[(d["real"] < d["plan"] - 10)]
+    if len(geride) > 0:
+        tut = fmt_money(float((geride["tutar"]).sum()))
+        out.append(("izle", f"{len(geride)} iş kalemi planının 10+ puan gerisinde (toplam {tut})."))
+    if k["has_cost"] and k["EAC"] and k["EAC"] > k["BAC"] * 1.05:
+        out.append(("risk", f"Öngörülen maliyet bütçeyi aşıyor: EAC {fmt_money(k['EAC'])} > BAC {fmt_money(k['BAC'])}."))
+    if not out:
+        out.append(("iyi", "Kritik eşik ihlali yok. Proje kontrol altında."))
+    return out
+
+
+def spi_cpi_series(snaps: pd.DataFrame) -> pd.DataFrame:
+    """Günlük snapshot'lardan SPI ve CPI zaman serisi."""
+    if snaps is None or snaps.empty:
+        return pd.DataFrame(columns=["date", "SPI", "CPI"])
+    s = snaps.copy()
+    s["date"] = pd.to_datetime(s["ts"]).dt.normalize()
+    s = s.sort_values("ts").groupby("date").last().reset_index()
+    s["SPI"] = (s["ev_pct"] / s["pv_pct"]).where(s["pv_pct"] > 0)
+    ev_usd = s["ev_pct"] / 100 * s["bac"]
+    s["CPI"] = (ev_usd / s["ac_usd"]).where(s["ac_usd"] > 0)
+    return s[["date", "SPI", "CPI"]]
+
+
+def cashflow_series(baseline_df: pd.DataFrame, snaps: pd.DataFrame) -> pd.DataFrame:
+    """Aylık planlanan (baseline'dan) vs fiili (AC) harcama."""
+    if baseline_df is None or baseline_df.empty:
+        return pd.DataFrame(columns=["month", "plan", "actual"])
+    b = baseline_df.copy()
+    b["month"] = b["date"].dt.strftime("%Y-%m")
+    b = b.groupby("month", sort=True).last().reset_index()
+    b["plan"] = b["planUSD"].diff().fillna(b["planUSD"]).clip(lower=0)
+    out = b[["month", "plan"]].copy()
+    out["actual"] = 0.0
+    if snaps is not None and not snaps.empty:
+        s = snaps.copy()
+        s["month"] = pd.to_datetime(s["ts"]).dt.strftime("%Y-%m")
+        s = s.sort_values("ts").groupby("month").last().reset_index()
+        s["actual"] = s["ac_usd"].diff().fillna(s["ac_usd"]).clip(lower=0)
+        out = out.merge(s[["month", "actual"]], on="month", how="left", suffixes=("", "_a"))
+        out["actual"] = out["actual_a"].fillna(0.0) if "actual_a" in out else 0.0
+        out = out[["month", "plan", "actual"]]
+    return out
+
+
+def month_rows(start, end) -> list:
+    """Proje başlangıç–bitiş arası aylık satır iskeleti (manuel plan programı için)."""
+    if not start or not end or end <= start:
+        start = pd.Timestamp.today().normalize().replace(day=1)
+        end = start + pd.Timedelta(days=330)
+    months = pd.period_range(pd.Timestamp(start), pd.Timestamp(end), freq="M")
+    return [{"Ay": str(m), "Plan %": None, "Gerçek %": None} for m in months]
+
+
+def manual_curve(planline_df: pd.DataFrame, bac: float):
+    """Elle girilen aylık Plan/Gerçek %'den S-eğrisi baseline + snapshot üretir.
+
+    Dönüş: (baseline_df[date,planUSD,planPct], snaps_df[date,pvPct,evPct,acPct])
+    Girilmemiş (boş) hücreler atlanır; hiç veri yoksa boş döner (model'e düşülür).
+    """
+    empty_b = pd.DataFrame(columns=["date", "planUSD", "planPct"])
+    empty_s = pd.DataFrame(columns=["date", "pvPct", "evPct", "acPct"])
+    if planline_df is None or planline_df.empty or "Ay" not in planline_df.columns:
+        return empty_b, empty_s
+    d = planline_df.copy()
+    d["date"] = pd.to_datetime(d["Ay"].astype(str) + "-01", errors="coerce")
+    d = d.dropna(subset=["date"]).sort_values("date")
+    pl = pd.to_numeric(d.get("Plan %"), errors="coerce")
+    rl = pd.to_numeric(d.get("Gerçek %"), errors="coerce")
+    base = d[pl.notna()]
+    baseline = pd.DataFrame({"date": base["date"], "planPct": pl[pl.notna()].clip(0, 100)})
+    baseline["planUSD"] = baseline["planPct"] / 100 * bac
+    mask = pl.notna() | rl.notna()
+    snaps = pd.DataFrame({
+        "date": d["date"][mask],
+        "pvPct": pl[mask].ffill().fillna(0).clip(0, 100),
+        "evPct": rl[mask].ffill().fillna(0).clip(0, 100),
+        "acPct": 0.0,
+    })
+    if baseline.empty and snaps.empty:
+        return empty_b, empty_s
+    return baseline[["date", "planUSD", "planPct"]], snaps

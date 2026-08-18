@@ -40,6 +40,10 @@ def init_db(conn: sqlite3.Connection) -> None:
     cur.execute("""CREATE TABLE IF NOT EXISTS snapshots(
         ts TEXT, scope TEXT DEFAULT 'ALL', pv_pct REAL, ev_pct REAL, ac_usd REAL, bac REAL, note TEXT)""")
     cur.execute("""CREATE TABLE IF NOT EXISTS settings(k TEXT PRIMARY KEY, v TEXT)""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS baseline(
+        id TEXT PRIMARY KEY, plan REAL, tutar REAL, ts TEXT)""")
+    cur.execute("""CREATE TABLE IF NOT EXISTS changelog(
+        ts TEXT, usr TEXT, item TEXT, field TEXT, oldv TEXT, newv TEXT)""")
     # eski tablolara 'scope' sütunu ekle (geçiş)
     try:
         cols = [r[1] for r in cur.execute("PRAGMA table_info(snapshots)").fetchall()]
@@ -152,3 +156,82 @@ def clear_snapshots(conn):
 
 def reset_all(conn):
     seed_all(conn)
+
+
+# ── Baseline (plan dondurma) ──
+def freeze_baseline(conn, df: pd.DataFrame):
+    d = df.copy()
+    d["tutar"] = d["qty"] * d["up"]
+    d["ts"] = pd.Timestamp.today().strftime("%Y-%m-%d %H:%M")
+    d[["id", "plan", "tutar", "ts"]].to_sql("baseline", conn, if_exists="replace", index=False)
+    conn.commit()
+
+
+def load_baseline(conn) -> pd.DataFrame:
+    try:
+        return pd.read_sql("SELECT * FROM baseline", conn)
+    except Exception:
+        return pd.DataFrame(columns=["id", "plan", "tutar", "ts"])
+
+
+# ── Değişiklik günlüğü (audit) ──
+def log_change(conn, usr, item, field, oldv, newv):
+    conn.execute("INSERT INTO changelog(ts,usr,item,field,oldv,newv) VALUES(?,?,?,?,?,?)",
+                 (pd.Timestamp.today().strftime("%Y-%m-%d %H:%M"), str(usr), str(item),
+                  str(field), str(oldv), str(newv)))
+    conn.commit()
+
+
+def load_changelog(conn, limit=500) -> pd.DataFrame:
+    try:
+        return pd.read_sql(f"SELECT * FROM changelog ORDER BY ts DESC LIMIT {int(limit)}", conn)
+    except Exception:
+        return pd.DataFrame(columns=["ts", "usr", "item", "field", "oldv", "newv"])
+
+
+# ── Genel tablo (risk / ncr / vo / hakediş) ──
+def load_table(conn, name, default_rows=None) -> pd.DataFrame:
+    try:
+        df = pd.read_sql(f"SELECT * FROM {name}", conn)
+        if len(df) == 0 and default_rows:
+            df = pd.DataFrame(default_rows); df.to_sql(name, conn, if_exists="replace", index=False)
+        return df
+    except Exception:
+        df = pd.DataFrame(default_rows or [])
+        if len(df):
+            df.to_sql(name, conn, if_exists="replace", index=False)
+        return df
+
+
+def save_table(conn, name, df: pd.DataFrame):
+    df.to_sql(name, conn, if_exists="replace", index=False); conn.commit()
+
+
+# ── Tam yedek (JSON) ──
+def export_all(conn) -> dict:
+    out = {}
+    for t in ("progress", "stock", "hse", "snapshots", "baseline", "changelog",
+              "risks", "ncr", "vo", "payments"):
+        try:
+            out[t] = pd.read_sql(f"SELECT * FROM {t}", conn).to_dict(orient="records")
+        except Exception:
+            out[t] = []
+    try:
+        out["settings"] = dict(conn.execute("SELECT k,v FROM settings").fetchall())
+    except Exception:
+        out["settings"] = {}
+    out["_meta"] = {"app": "ARAKONAK GES v5", "exported": pd.Timestamp.today().strftime("%Y-%m-%d %H:%M")}
+    return out
+
+
+def import_all(conn, data: dict):
+    for t in ("progress", "stock", "hse", "snapshots", "baseline", "changelog",
+              "risks", "ncr", "vo", "payments"):
+        if t in data and isinstance(data[t], list) and len(data[t]) > 0:
+            df = pd.DataFrame(data[t])
+            if not df.empty and len(df.columns) > 0:
+                df.to_sql(t, conn, if_exists="replace", index=False)
+    if "settings" in data and isinstance(data["settings"], dict):
+        for k, v in data["settings"].items():
+            conn.execute("INSERT INTO settings(k,v) VALUES(?,?) ON CONFLICT(k) DO UPDATE SET v=excluded.v", (k, v))
+    conn.commit()

@@ -72,28 +72,30 @@ def gauge(pct, plan_pct):
 
 
 def s_curve(baseline: pd.DataFrame, snaps: pd.DataFrame, today_pv, today_ev, today_ac=None):
-    """Modellenmiş plan baseline + snapshot bazlı gerçek PV/EV/AC eğrisi + bugünkü nokta."""
+    """Tamamen elle girilen plan + gerçek eğrisi + bugünkü nokta."""
     fig = go.Figure()
-    if baseline is not None and not baseline.empty:
-        fig.add_scatter(x=baseline["date"], y=baseline["planPct"], name="Plan Baseline (model)",
-                        mode="lines", line=dict(color=C_PLAN, width=2.5, dash="dot"),
-                        hovertemplate="%{x|%d.%m.%Y}<br>Plan %{y:.1f}%<extra></extra>")
+    has_base = baseline is not None and not baseline.empty
+    if has_base:
+        fig.add_scatter(x=baseline["date"], y=baseline["planPct"], name="Plan (elle girilen)",
+                        mode="lines+markers", line=dict(color=C_PLAN, width=2.5, dash="dot"),
+                        marker=dict(size=5), hovertemplate="%{x|%d.%m.%Y}<br>Plan %{y:.1f}%<extra></extra>")
     if snaps is not None and not snaps.empty:
-        fig.add_scatter(x=snaps["date"], y=snaps["evPct"], name="Gerçek (EV)",
+        fig.add_scatter(x=snaps["date"], y=snaps["evPct"], name="Gerçek",
                         mode="lines+markers", line=dict(color=C_OK, width=3),
-                        marker=dict(size=7), hovertemplate="%{x|%d.%m.%Y}<br>EV %{y:.1f}%<extra></extra>")
-        fig.add_scatter(x=snaps["date"], y=snaps["pvPct"], name="Plan (girilen)",
-                        mode="lines+markers", line=dict(color=C_PLAN_D, width=1.5, dash="dash"),
-                        marker=dict(size=5), hovertemplate="%{x|%d.%m.%Y}<br>PV %{y:.1f}%<extra></extra>")
+                        marker=dict(size=7), hovertemplate="%{x|%d.%m.%Y}<br>Gerçek %{y:.1f}%<extra></extra>")
+        if not has_base:
+            fig.add_scatter(x=snaps["date"], y=snaps["pvPct"], name="Plan (girilen)",
+                            mode="lines+markers", line=dict(color=C_PLAN_D, width=1.5, dash="dash"),
+                            marker=dict(size=5), hovertemplate="%{x|%d.%m.%Y}<br>Plan %{y:.1f}%<extra></extra>")
         if (snaps["acPct"] > 0).any():
             fig.add_scatter(x=snaps["date"], y=snaps["acPct"], name="Maliyet (AC)",
                             mode="lines+markers", line=dict(color=C_AMB, width=1.5),
                             marker=dict(size=5), hovertemplate="%{x|%d.%m.%Y}<br>AC %{y:.1f}%<extra></extra>")
     # bugünkü canlı nokta
     now = pd.Timestamp.today().normalize()
-    fig.add_scatter(x=[now], y=[today_ev], name="Bugün (EV)", mode="markers",
+    fig.add_scatter(x=[now], y=[today_ev], name="Bugün", mode="markers",
                     marker=dict(size=13, color=C_OK, line=dict(color="white", width=2)),
-                    hovertemplate="Bugün<br>EV %{y:.1f}%<extra></extra>")
+                    hovertemplate="Bugün<br>Gerçek %{y:.1f}%<extra></extra>")
     _style(fig, 360)
     fig.update_yaxes(range=[0, 105], ticksuffix="%", showgrid=True, gridcolor=C_GRID)
     return fig
@@ -340,4 +342,37 @@ def heatmap_disc_group(df_all: pd.DataFrame, top: int = 8):
                       font=dict(family=FONT),
                       yaxis=dict(autorange="reversed", tickfont=dict(color="#c7d6ea", size=10.5)),
                       xaxis=dict(side="top", tickfont=dict(color="#a7bad4", size=11)))
+    return fig
+
+
+def spi_cpi_trend(series: pd.DataFrame):
+    """SPI ve CPI'nin zaman içindeki eğilimi (1.0 hedef çizgili)."""
+    fig = go.Figure()
+    if series is not None and not series.empty:
+        fig.add_scatter(x=series["date"], y=series["SPI"], name="SPI", mode="lines+markers",
+                        line=dict(color=C_OK, width=3), marker=dict(size=6))
+        if series["CPI"].notna().any():
+            fig.add_scatter(x=series["date"], y=series["CPI"], name="CPI", mode="lines+markers",
+                            line=dict(color=C_PLAN, width=3, dash="dot"), marker=dict(size=6))
+    fig.add_hline(y=1.0, line=dict(color=C_AMB, width=1.5, dash="dash"))
+    _style(fig, 300)
+    fig.update_yaxes(showgrid=True, gridcolor=C_GRID)
+    return fig
+
+
+def cashflow_chart(cf: pd.DataFrame):
+    """Aylık planlanan vs fiili harcama + kümülatif."""
+    fig = go.Figure()
+    if cf is not None and not cf.empty:
+        fig.add_bar(x=cf["month"], y=cf["plan"], name="Planlanan (aylık)",
+                    marker=dict(color="rgba(139,92,246,.30)", line=dict(color=C_PLAN, width=1)))
+        fig.add_bar(x=cf["month"], y=cf["actual"], name="Fiili (aylık)",
+                    marker=dict(color=C_OK, line=dict(color=C_OK_D, width=1)))
+        fig.add_scatter(x=cf["month"], y=cf["plan"].cumsum(), name="Planlanan (kümülatif)",
+                        mode="lines", line=dict(color=C_PLAN, width=2), yaxis="y2")
+        fig.update_layout(yaxis2=dict(overlaying="y", side="right", showgrid=False,
+                                      tickfont=dict(color=C_INK2, size=10), tickprefix="$"))
+    _style(fig, 320)
+    fig.update_yaxes(tickprefix="$", showgrid=True, gridcolor=C_GRID)
+    fig.update_layout(barmode="group")
     return fig
