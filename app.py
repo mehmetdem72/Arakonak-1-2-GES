@@ -7,6 +7,7 @@ biçimlendirmeli disiplin matrisi. İş kalemleri günlük girilir; her gün oto
 from __future__ import annotations
 
 import base64
+import json
 from datetime import date, datetime
 from pathlib import Path
 
@@ -150,7 +151,8 @@ def inject_css(theme="dark"):
     table.mx th{{color:{t['muted']};font-weight:800;font-size:10px;letter-spacing:.4px;text-align:left;
       padding:8px 10px;border-bottom:2px solid {t['border']};}}
     table.mx td{{padding:9px 10px;border-bottom:1px solid {t['rowb']};color:{t['text']};}}
-    table.mx tr:hover td{{background:{t['rowh']};}}
+    table.mx tbody tr:nth-child(even) td, table.mx tr:nth-child(even) td{{background:rgba(255,255,255,.018);}}
+    table.mx tr:hover td{{background:{t['rowh']};transition:background .12s ease;}}
     .mx-name{{font-weight:700;color:{t['text']};}}
     .mx-bar{{border-radius:5px;height:17px;line-height:17px;padding-left:7px;font-weight:800;color:#04222b;font-size:9.5px;}}
     .mx-pill{{padding:3px 9px;border-radius:999px;font-weight:800;font-size:9.5px;}}
@@ -158,8 +160,12 @@ def inject_css(theme="dark"):
     .rbf{{height:100%;background:#fb7185;border-radius:4px;}}
 
     div[data-testid="stMetric"]{{background:{t['metricbg']};border:1px solid {t['border']};border-radius:14px;
-      padding:12px 15px;box-shadow:0 4px 16px rgba(0,0,0,.12);}}
+      padding:13px 16px;box-shadow:0 4px 16px rgba(0,0,0,.12);position:relative;overflow:hidden;
+      background-image:linear-gradient(180deg,rgba(34,211,238,.045),transparent);}}
+    div[data-testid="stMetric"]::before{{content:"";position:absolute;left:0;top:0;height:3px;width:100%;
+      background:linear-gradient(90deg,{t['accd']},{t['acc']});}}
     div[data-testid="stMetric"] *{{color:{t['text']} !important;}}
+    div[data-testid="stMetricValue"] *{{color:{t['ttl']} !important;font-weight:900 !important;}}
     div[data-testid="stMetricLabel"] *{{color:{t['muted']} !important;}}
 
     /* ── NEON KOKPİT (Tasarım 3) ── */
@@ -277,12 +283,15 @@ with st.sidebar:
     st.markdown(f'<div class="rail-user">👤 <b>{user["name"]}</b><br>'
                 f'<span style="opacity:.7">{user["username"]} · {user["role"]}</span></div>',
                 unsafe_allow_html=True)
-    if st.button("Çıkış yap", use_container_width=True):
+    if st.button("Çıkış yap", width="stretch"):
         auth.logout(); st.rerun()
     if ADMIN:
-        if st.button("↺ Verileri sıfırla", use_container_width=True):
+        if st.button("↺ Verileri sıfırla", width="stretch"):
             storage.reset_all(conn)
             for kk in ("df", "stock", "hse"):
+                st.session_state.pop(kk, None)
+            for kk in [x for x in list(st.session_state.keys())
+                       if str(x).startswith(("ep_", "er_", "ea_"))]:
                 st.session_state.pop(kk, None)
             st.rerun()
 
@@ -300,7 +309,7 @@ with head_r:
     sc_cols = st.columns(4, gap="small")
     for _i, _lb in enumerate(["Tümü", "GES-1", "GES-2", "ORTAK"]):
         _typ = "primary" if st.session_state.scope_sel == _lb else "secondary"
-        if sc_cols[_i].button(_lb, key=f"scb_{_lb}", type=_typ, use_container_width=True):
+        if sc_cols[_i].button(_lb, key=f"scb_{_lb}", type=_typ, width="stretch"):
             st.session_state.scope_sel = _lb
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
@@ -449,7 +458,7 @@ if page == "Komuta Paneli":
         with st.container(border=True):
             st.markdown('<div class="panel-ttl">Genel İlerleme</div>', unsafe_allow_html=True)
             st.plotly_chart(charts.progress_donut(k["ilerleme"], k["planPct"]),
-                            use_container_width=True, config=PLOT)
+                            width="stretch", config=PLOT)
             st.markdown(f'<div style="text-align:center">'
                         f'<span class="nchip">PLANA GÖRE %{k["planPct"]:.0f}</span>'
                         f'<span class="nchip" style="color:{spi_col}">SPI {spi} {spi_arrow}</span></div>',
@@ -457,12 +466,12 @@ if page == "Komuta Paneli":
     with hero[2]:
         with st.container(border=True):
             st.markdown('<div class="panel-ttl">Grup Performans Göstergeleri</div>', unsafe_allow_html=True)
-            st.plotly_chart(charts.group_gauges(gag), use_container_width=True, config=PLOT)
+            st.plotly_chart(charts.group_gauges(gag), width="stretch", config=PLOT)
 
     with st.container(border=True):
         st.markdown('<div class="panel-ttl">Kümülatif S-Eğrisi (günlük)</div>', unsafe_allow_html=True)
         st.plotly_chart(charts.s_curve(baseline, snaps, k["planPct"], k["ilerleme"]),
-                        use_container_width=True, config=PLOT)
+                        width="stretch", config=PLOT)
 
     with st.container(border=True):
         st.markdown('<div class="panel-ttl">Disiplin Matrisi — Koşullu Biçimlendirme</div>', unsafe_allow_html=True)
@@ -490,7 +499,7 @@ elif page == "İş Kalemleri":
                     c1, c2 = st.columns(2)
                     ai_plan = c1.number_input("Plan %", 0, 100, 0)
                     ai_real = c2.number_input("Gerçek %", 0, 100, 0)
-                    submitted = st.form_submit_button("➕ Ekle", type="primary", use_container_width=True)
+                    submitted = st.form_submit_button("➕ Ekle", type="primary", width="stretch")
                 if submitted:
                     disc_final = ai_disc_new.strip() if ai_disc == "➕ Yeni disiplin…" else ai_disc
                     if not ai_name.strip() or not disc_final:
@@ -502,7 +511,7 @@ elif page == "İş Kalemleri":
             with st.expander("🗑 İş Kalemi Sil", expanded=False):
                 del_map = {f'{r["disc"]} — {r["name"][:50]}': r["id"] for _, r in scoped.iterrows()}
                 del_sel = st.multiselect("Silinecek kalem(ler)", list(del_map.keys()))
-                if st.button("Seçilenleri sil", disabled=not del_sel, use_container_width=True):
+                if st.button("Seçilenleri sil", disabled=not del_sel, width="stretch"):
                     delete_items([del_map[x] for x in del_sel])
                     st.toast(f"{len(del_sel)} kalem silindi."); st.rerun()
     else:
@@ -537,40 +546,49 @@ elif page == "İş Kalemleri":
                                  min_value=1, max_value=pages, value=1, step=1)
             sl = view.iloc[(pg - 1) * PAGE: pg * PAGE]
             st.caption(f"{(pg-1)*PAGE+1}–{min(pg*PAGE, total)} arası kalemler gösteriliyor.")
+        # widget değerlerini önceden session_state'e tohumla (form/value+key bayatlık sorununu önler)
+        for _, r in sl.iterrows():
+            st.session_state.setdefault(f"ep_{r['id']}", int(round(r["plan"])))
+            st.session_state.setdefault(f"er_{r['id']}", int(round(r["real"])))
+            st.session_state.setdefault(f"ea_{r['id']}", float(r["ac"]))
         with st.form("edit_items", border=False):
             h = st.columns([5, 1.3, 1.3, 1.8])
             h[0].markdown("**Poz Adı**"); h[1].markdown("**Plan %**")
             h[2].markdown("**Gerçek %**"); h[3].markdown("**Fiili Maliyet ($)**")
-            edits = {}
+            ids = []
             for _, r in sl.iterrows():
+                ids.append(r["id"])
                 c = st.columns([5, 1.3, 1.3, 1.8])
                 c[0].markdown(f'<div class="row-edit" style="font-size:12px;padding-top:8px;color:#dbeafe">'
                               f'{r["name"][:80]}</div>', unsafe_allow_html=True)
-                p = c[1].number_input("p", 0, 100, int(round(r["plan"])), key=f"ep_{r['id']}", label_visibility="collapsed")
-                rl = c[2].number_input("r", 0, 100, int(round(r["real"])), key=f"er_{r['id']}", label_visibility="collapsed")
-                ac = c[3].number_input("a", min_value=0.0, value=float(r["ac"]), step=1000.0,
-                                       key=f"ea_{r['id']}", label_visibility="collapsed")
-                edits[r["id"]] = (p, rl, ac)
-            saved = st.form_submit_button("💾 Kaydet — grafiklere yansıt", type="primary", use_container_width=True)
+                c[1].number_input("p", 0, 100, key=f"ep_{r['id']}", label_visibility="collapsed")
+                c[2].number_input("r", 0, 100, key=f"er_{r['id']}", label_visibility="collapsed")
+                c[3].number_input("a", min_value=0.0, step=1000.0, key=f"ea_{r['id']}", label_visibility="collapsed")
+            saved = st.form_submit_button("💾 Kaydet — grafiklere yansıt", type="primary", width="stretch")
         if saved:
             cur = st.session_state.df.set_index("id")
             n_upd = 0
-            for rid, (p, rl, ac) in edits.items():
+            for rid in ids:
                 old = cur.loc[rid]
                 nm = str(old["name"])[:40]
+                p = float(st.session_state.get(f"ep_{rid}", old["plan"]))
+                rl = float(st.session_state.get(f"er_{rid}", old["real"]))
+                ac = float(st.session_state.get(f"ea_{rid}", old["ac"]))
+                p = max(0.0, min(100.0, p)); rl = max(0.0, min(100.0, rl)); ac = max(0.0, ac)
                 changed = False
-                if abs(float(p) - float(old["plan"])) > 1e-9:
+                if abs(p - float(old["plan"])) > 1e-9:
                     storage.log_change(conn, user["username"], nm, "Plan %", f"{old['plan']:.0f}", f"{p:.0f}"); changed = True
-                if abs(float(rl) - float(old["real"])) > 1e-9:
+                if abs(rl - float(old["real"])) > 1e-9:
                     storage.log_change(conn, user["username"], nm, "Gerçek %", f"{old['real']:.0f}", f"{rl:.0f}"); changed = True
-                if abs(float(ac) - float(old["ac"])) > 1e-6:
+                if abs(ac - float(old["ac"])) > 1e-6:
                     storage.log_change(conn, user["username"], nm, "Fiili Maliyet", f"{old['ac']:.0f}", f"{ac:.0f}"); changed = True
                 if changed:
-                    st.session_state.df.loc[st.session_state.df["id"] == rid, ["plan", "real", "ac"]] = [float(p), float(rl), float(ac)]
+                    st.session_state.df.loc[st.session_state.df["id"] == rid, ["plan", "real", "ac"]] = [p, rl, ac]
                     n_upd += 1
             if n_upd:
                 persist_progress()
-                st.toast(f"{n_upd} kalem kaydedildi · grafikler + kayıt defteri güncellendi.")
+                st.success(f"✅ {n_upd} kalem kaydedildi · grafikler ve S-Eğrisi güncellendi.")
+                st.toast(f"{n_upd} kalem kaydedildi.")
             else:
                 st.toast("Değişiklik yok.")
             st.rerun()
@@ -602,11 +620,11 @@ elif page == "Maliyet & EVM":
                 "Girilmediği sürece uydurma değer gösterilmez.")
     with st.container(border=True):
         st.markdown('<div class="panel-ttl">Bütçe Akışı — BAC → Kazanılan → Kalan</div>', unsafe_allow_html=True)
-        st.plotly_chart(charts.evm_waterfall(k), use_container_width=True, config=PLOT)
+        st.plotly_chart(charts.evm_waterfall(k), width="stretch", config=PLOT)
     with st.container(border=True):
         st.markdown('<div class="panel-ttl">SPI / CPI Trend (zaman içinde performans)</div>', unsafe_allow_html=True)
         st.plotly_chart(charts.spi_cpi_trend(core.spi_cpi_series(storage.load_snapshots(conn, scope))),
-                        use_container_width=True, config=PLOT)
+                        width="stretch", config=PLOT)
         st.caption("1.0 çizgisi hedef. SPI<1 zaman geriliği, CPI<1 maliyet aşımı. Veri girdikçe eğilim oluşur.")
 
 elif page == "S-Eğrisi":
@@ -617,7 +635,7 @@ elif page == "S-Eğrisi":
     st.caption("Her ay için **planlanan** kümülatif %'yi (ve istersen **gerçekleşen** %'yi) elle girin. "
                "Girdiğinizde S-eğrisi bu değerlerden çizilir; boş bırakırsanız tarih-modeli ve İş Kalemleri verisi kullanılır.")
     planline = storage.load_table(conn, "planline", core.month_rows(meta["start"], meta["end"]))
-    pl_ed = st.data_editor(planline, use_container_width=True, hide_index=True, num_rows="dynamic",
+    pl_ed = st.data_editor(planline, width="stretch", hide_index=True, num_rows="dynamic",
                            disabled=not ADMIN, key="planline_ed",
                            column_config={
                                "Ay": st.column_config.TextColumn("Ay (YYYY-AA)"),
@@ -634,7 +652,7 @@ elif page == "S-Eğrisi":
     with st.container(border=True):
         st.markdown('<div class="panel-ttl">Kümülatif İlerleme S-Eğrisi · elle girilen değerler</div>', unsafe_allow_html=True)
         st.plotly_chart(charts.s_curve(baseline, snaps, k["planPct"], k["ilerleme"]),
-                        use_container_width=True, config=PLOT)
+                        width="stretch", config=PLOT)
     if not has_plan:
         st.info("Plan çizgisi için yukarıdaki **Plan Programı** tablosuna aylık **Plan %** girin. "
                 "Otomatik/tahmini plan çizgisi kullanılmaz — grafik yalnızca sizin girdiğiniz değerleri gösterir.")
@@ -644,7 +662,7 @@ elif page == "S-Eğrisi":
         with st.expander("İş Kalemleri'nden oluşan günlük kayıtlar"):
             st.dataframe(snaps_raw[["ts", "pv_pct", "ev_pct", "ac_usd", "bac", "note"]].rename(columns={
                 "ts": "Tarih", "pv_pct": "Plan %", "ev_pct": "Gerçek %", "ac_usd": "Fiili $", "bac": "BAC $", "note": "Not"}),
-                use_container_width=True, hide_index=True)
+                width="stretch", hide_index=True)
             if ADMIN and st.button("Günlük kayıtları temizle"):
                 storage.clear_snapshots(conn); st.rerun()
 
@@ -663,13 +681,13 @@ elif page == "Trend & Nakit":
         st.markdown('<div class="panel-ttl">Nakit Akışı — Aylık Planlanan vs Fiili</div>', unsafe_allow_html=True)
         bl = core.s_curve_baseline(k["BAC"], meta["start"], meta["end"])
         st.plotly_chart(charts.cashflow_chart(core.cashflow_series(bl, storage.load_snapshots(conn, scope))),
-                        use_container_width=True, config=PLOT)
+                        width="stretch", config=PLOT)
         st.caption("Planlanan harcama baseline eğrisinden türetilir; fiili harcama girdiğiniz Fiili Maliyet (AC) verisinden.")
 
     st.markdown('<div class="panel-ttl">Değişiklik Emirleri (VO) — keşif artışı / ilave iş</div>', unsafe_allow_html=True)
     vo_def = [{"VO No": "VO-001", "Açıklama": "", "Tutar ($)": 0.0, "Durum": "Beklemede", "Tarih": ""}]
     vo = storage.load_table(conn, "vo", vo_def)
-    vo_ed = st.data_editor(vo, use_container_width=True, hide_index=True, num_rows="dynamic",
+    vo_ed = st.data_editor(vo, width="stretch", hide_index=True, num_rows="dynamic",
                            disabled=not ADMIN, key="vo_ed",
                            column_config={"Durum": st.column_config.SelectboxColumn(options=["Beklemede", "Onaylı", "Red"]),
                                           "Tutar ($)": st.column_config.NumberColumn(format="$%d")})
@@ -679,7 +697,7 @@ elif page == "Trend & Nakit":
     st.markdown('<div class="panel-ttl">Hakediş / Ödeme Takibi</div>', unsafe_allow_html=True)
     pay_def = [{"Hakediş No": "HK-01", "Dönem": "", "Tutar ($)": 0.0, "Durum": "Hazırlanıyor", "Tarih": ""}]
     pay = storage.load_table(conn, "payments", pay_def)
-    pay_ed = st.data_editor(pay, use_container_width=True, hide_index=True, num_rows="dynamic",
+    pay_ed = st.data_editor(pay, width="stretch", hide_index=True, num_rows="dynamic",
                             disabled=not ADMIN, key="pay_ed",
                             column_config={"Durum": st.column_config.SelectboxColumn(options=["Hazırlanıyor", "Onaylandı", "Ödendi"]),
                                            "Tutar ($)": st.column_config.NumberColumn(format="$%d")})
@@ -691,7 +709,7 @@ elif page == "Risk & Kalite":
     risk_def = [{"Risk": "Evirici tedarik gecikmesi", "Olasılık (1-5)": 3, "Etki (1-5)": 4,
                  "Aksiyon": "Tedarikçi ile haftalık takip", "Sorumlu": "Satınalma", "Durum": "Açık"}]
     risks = storage.load_table(conn, "risks", risk_def)
-    risks_ed = st.data_editor(risks, use_container_width=True, hide_index=True, num_rows="dynamic",
+    risks_ed = st.data_editor(risks, width="stretch", hide_index=True, num_rows="dynamic",
                               disabled=not ADMIN, key="risk_ed",
                               column_config={
                                   "Olasılık (1-5)": st.column_config.NumberColumn(min_value=1, max_value=5, step=1),
@@ -708,7 +726,7 @@ elif page == "Risk & Kalite":
     st.markdown('<div class="panel-ttl">Kalite — Uygunsuzluk (NCR) Kaydı</div>', unsafe_allow_html=True)
     ncr_def = [{"NCR No": "NCR-001", "Konu": "", "Disiplin": "", "Durum": "Açık", "Tarih": ""}]
     ncr = storage.load_table(conn, "ncr", ncr_def)
-    ncr_ed = st.data_editor(ncr, use_container_width=True, hide_index=True, num_rows="dynamic",
+    ncr_ed = st.data_editor(ncr, width="stretch", hide_index=True, num_rows="dynamic",
                             disabled=not ADMIN, key="ncr_ed",
                             column_config={"Durum": st.column_config.SelectboxColumn(options=["Açık", "Düzeltiliyor", "Kapandı"])})
     if ADMIN and not ncr_ed.equals(ncr):
@@ -742,7 +760,7 @@ elif page == "Baseline":
         else:
             st.dataframe(chg[["disc", "name", "plan_bl", "plan", "Δ Plan", "Δ Bütçe"]].rename(columns={
                 "disc": "Disiplin", "name": "Poz", "plan_bl": "Plan (baseline)", "plan": "Plan (güncel)"}),
-                use_container_width=True, hide_index=True)
+                width="stretch", hide_index=True)
 
 elif page == "Kayıt Defteri":
     st.markdown('<div class="panel-ttl">Değişiklik Günlüğü (Audit Trail)</div>', unsafe_allow_html=True)
@@ -752,14 +770,14 @@ elif page == "Kayıt Defteri":
     else:
         st.dataframe(cl.rename(columns={"ts": "Tarih", "usr": "Kullanıcı", "item": "Poz",
                                         "field": "Alan", "oldv": "Eski", "newv": "Yeni"}),
-                     use_container_width=True, hide_index=True, height=520)
+                     width="stretch", hide_index=True, height=520)
 
 elif page == "Stok":
     with st.container(border=True):
         st.markdown('<div class="panel-ttl">Malzeme Akışı — Sipariş → Sevk → Sahada → Montaj</div>', unsafe_allow_html=True)
-        st.plotly_chart(charts.stock_chart(st.session_state.stock), use_container_width=True, config=PLOT)
+        st.plotly_chart(charts.stock_chart(st.session_state.stock), width="stretch", config=PLOT)
     sdf = st.session_state.stock.copy()
-    edited_s = st.data_editor(sdf, use_container_width=True, hide_index=True, num_rows="fixed",
+    edited_s = st.data_editor(sdf, width="stretch", hide_index=True, num_rows="fixed",
         disabled=not ADMIN, key="stock_editor",
         column_config={"id": None, "name": st.column_config.TextColumn("Malzeme", disabled=True, width="large"),
             "unit": st.column_config.TextColumn("Birim", disabled=True),
@@ -779,7 +797,7 @@ elif page == "İSG":
     for col, (_, r) in zip(cols, hdf.iterrows()):
         col.metric(r["label"], f"{r['value']:.0f} {r['unit']}")
     st.divider()
-    edited_h = st.data_editor(hdf, use_container_width=True, hide_index=True, num_rows="fixed",
+    edited_h = st.data_editor(hdf, width="stretch", hide_index=True, num_rows="fixed",
         disabled=not ADMIN, key="hse_editor",
         column_config={"id": None, "label": st.column_config.TextColumn("Gösterge", disabled=True),
             "value": st.column_config.NumberColumn("Değer", format="%.0f"),
@@ -801,13 +819,13 @@ elif page == "Dışa Aktar":
             xls = exports.build_excel(state)
         st.download_button("⬇️ Excel (.xlsx) indir", xls, file_name=f"ARAKONAK_GES_{ts}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-            use_container_width=True, type="primary")
+            width="stretch", type="primary")
         st.caption("7 sayfa: Özet · İş Kalemleri · Disiplin · Grup · Geciken İşler · Stok · İSG")
     with d2:
         with st.spinner("PDF hazırlanıyor…"):
             pdf = exports.build_pdf(state)
         st.download_button("⬇️ PDF rapor indir", pdf, file_name=f"ARAKONAK_GES_{ts}.pdf",
-            mime="application/pdf", use_container_width=True, type="primary")
+            mime="application/pdf", width="stretch", type="primary")
         st.caption("Logolu yönetici raporu: KPI · grafikler · geciken işler")
 
 elif page == "Veri":
@@ -818,12 +836,12 @@ elif page == "Veri":
         full = json.dumps(storage.export_all(conn), ensure_ascii=False, indent=1).encode("utf-8")
         st.download_button("⬇️ TAM YEDEK (.json) indir — tüm veriler", full,
                            file_name=f"arakonak_TAMYEDEK_{datetime.now():%Y%m%d_%H%M}.json",
-                           mime="application/json", use_container_width=True, type="primary")
+                           mime="application/json", width="stretch", type="primary")
         st.caption("İş kalemleri, stok, İSG, günlük kayıtlar, baseline, risk/NCR/VO/hakediş, kayıt defteri — hepsi.")
     with b2:
         csv = st.session_state.df.to_csv(index=False).encode("utf-8-sig")
         st.download_button("⬇️ Sadece iş kalemleri (CSV)", csv, file_name="arakonak_iskalemleri.csv",
-                           mime="text/csv", use_container_width=True)
+                           mime="text/csv", width="stretch")
 
     if ADMIN:
         st.divider()
@@ -833,6 +851,8 @@ elif page == "Veri":
             try:
                 storage.import_all(conn, json.loads(upj.getvalue().decode("utf-8")))
                 for kk in ("df", "stock", "hse"):
+                    st.session_state.pop(kk, None)
+                for kk in [x for x in list(st.session_state.keys()) if str(x).startswith(("ep_", "er_", "ea_"))]:
                     st.session_state.pop(kk, None)
                 st.success("Tam yedek geri yüklendi."); st.rerun()
             except Exception as ex:
@@ -848,7 +868,10 @@ elif page == "Veri":
                     for c in ("plan", "real", "ac"):
                         if c in ni.columns:
                             cur.loc[ni.index, c] = ni[c].values
-                    st.session_state.df = cur.reset_index(); persist_progress()
+                    st.session_state.df = cur.reset_index()
+                    for kk in [x for x in list(st.session_state.keys()) if str(x).startswith(("ep_", "er_", "ea_"))]:
+                        st.session_state.pop(kk, None)
+                    persist_progress()
                     st.success("Geri yüklendi."); st.rerun()
             except Exception as ex:
                 st.error(f"Okunamadı: {ex}")
