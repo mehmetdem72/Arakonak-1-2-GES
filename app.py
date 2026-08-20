@@ -470,7 +470,8 @@ if page == "Komuta Paneli":
 
     with st.container(border=True):
         st.markdown('<div class="panel-ttl">Kümülatif S-Eğrisi (günlük)</div>', unsafe_allow_html=True)
-        st.plotly_chart(charts.s_curve(baseline, snaps, k["planPct"], k["ilerleme"]),
+        st.plotly_chart(charts.s_curve(baseline, snaps, k["planPct"], k["ilerleme"],
+                                       xstart=meta["start"], xend=meta["end"]),
                         width="stretch", config=PLOT)
 
     with st.container(border=True):
@@ -651,7 +652,8 @@ elif page == "S-Eğrisi":
 
     with st.container(border=True):
         st.markdown('<div class="panel-ttl">Kümülatif İlerleme S-Eğrisi · elle girilen değerler</div>', unsafe_allow_html=True)
-        st.plotly_chart(charts.s_curve(baseline, snaps, k["planPct"], k["ilerleme"]),
+        st.plotly_chart(charts.s_curve(baseline, snaps, k["planPct"], k["ilerleme"],
+                                       xstart=meta["start"], xend=meta["end"]),
                         width="stretch", config=PLOT)
     if not has_plan:
         st.info("Plan çizgisi için yukarıdaki **Plan Programı** tablosuna aylık **Plan %** girin. "

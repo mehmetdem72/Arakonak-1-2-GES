@@ -71,8 +71,10 @@ def gauge(pct, plan_pct):
     return fig
 
 
-def s_curve(baseline: pd.DataFrame, snaps: pd.DataFrame, today_pv, today_ev, today_ac=None):
-    """Tamamen elle girilen plan + gerçek eğrisi + bugünkü nokta."""
+def s_curve(baseline: pd.DataFrame, snaps: pd.DataFrame, today_pv, today_ev, today_ac=None,
+            xstart=None, xend=None):
+    """Tamamen elle girilen plan + gerçek eğrisi + bugünkü nokta.
+    xstart/xend verilirse x ekseni proje zaman çizgisine yayılır (tek gün varken saat gösterimini önler)."""
     fig = go.Figure()
     has_base = baseline is not None and not baseline.empty
     if has_base:
@@ -91,13 +93,20 @@ def s_curve(baseline: pd.DataFrame, snaps: pd.DataFrame, today_pv, today_ev, tod
             fig.add_scatter(x=snaps["date"], y=snaps["acPct"], name="Maliyet (AC)",
                             mode="lines+markers", line=dict(color=C_AMB, width=1.5),
                             marker=dict(size=5), hovertemplate="%{x|%d.%m.%Y}<br>AC %{y:.1f}%<extra></extra>")
-    # bugünkü canlı nokta
+    # bugünkü canlı nokta (güne sabit)
     now = pd.Timestamp.today().normalize()
     fig.add_scatter(x=[now], y=[today_ev], name="Bugün", mode="markers",
                     marker=dict(size=13, color=C_OK, line=dict(color="white", width=2)),
                     hovertemplate="Bugün<br>Gerçek %{y:.1f}%<extra></extra>")
     _style(fig, 360)
     fig.update_yaxes(range=[0, 105], ticksuffix="%", showgrid=True, gridcolor=C_GRID)
+    # x eksenini proje aralığına yay
+    if xstart is not None and xend is not None:
+        try:
+            fig.update_xaxes(range=[pd.Timestamp(xstart), pd.Timestamp(xend)],
+                             tickformat="%b %Y", dtick="M1")
+        except Exception:
+            pass
     return fig
 
 

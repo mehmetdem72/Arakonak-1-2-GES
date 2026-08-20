@@ -90,95 +90,135 @@ def login_gate() -> bool:
     if current_user():
         return True
 
-    logo = _logo_b64(black=True)
-    logo_html = (f'<img src="data:image/svg+xml;base64,{logo}" '
-                 f'style="height:60px;display:block"/>'
-                 if logo else '<div style="font-size:44px">⚡</div>')
+    logo = _logo_b64(black=False)  # koyu panelde beyaz logo
+    logo_html = (f'<img src="data:image/svg+xml;base64,{logo}" style="height:34px;display:block"/>'
+                 if logo else '<div style="font-size:30px;color:#fff">⚡</div>')
+
+    def _panels():
+        out = ""
+        for r in range(3):
+            y = 130 + r * 46; sc = 1 + r * 0.34; off = r * 30
+            for i in range(7):
+                x = -40 + i * 118 * sc - off
+                out += (f'<polygon points="{x:.0f},{y:.0f} {x+92*sc:.0f},{y:.0f} '
+                        f'{x+110*sc:.0f},{y+34:.0f} {x+18*sc:.0f},{y+34:.0f}" '
+                        f'fill="rgba(20,120,130,.18)" stroke="rgba(45,212,191,.5)" '
+                        f'stroke-width="1" opacity="{.8-r*.12:.2f}"/>')
+        return out
 
     st.markdown(f"""
     <style>
       section[data-testid="stSidebar"]{{display:none;}}
-      /* ★ Şifre göster/gizle butonunu gizle — 'visibility' yazısı sorununun kesin çözümü */
       [data-testid="stTextInputRevealButton"]{{display:none !important;}}
-      [data-testid="stAppViewContainer"]{{
-        background:
-          radial-gradient(1100px 700px at 12% -5%, #0e7d8c 0%, transparent 52%),
-          radial-gradient(900px 640px at 100% 12%, rgba(45,212,191,.35), transparent 55%),
-          radial-gradient(1150px 780px at 60% 120%, rgba(34,211,238,.28), transparent 60%),
-          linear-gradient(150deg,#04222b 0%, #06414f 45%, #0a6b76 100%);
-        background-size:200% 200%; animation:bgshift 16s ease infinite;
-      }}
-      @keyframes bgshift{{0%{{background-position:0% 50%}}50%{{background-position:100% 50%}}100%{{background-position:0% 50%}}}}
-      [data-testid="stAppViewContainer"]::before{{
-        content:"";position:fixed;inset:0;pointer-events:none;opacity:.5;
-        background-image:linear-gradient(rgba(255,255,255,.055) 1px,transparent 1px),
-                         linear-gradient(90deg,rgba(255,255,255,.055) 1px,transparent 1px);
-        background-size:44px 44px;
-        -webkit-mask-image:radial-gradient(circle at 50% 40%,#000,transparent 75%);
-                mask-image:radial-gradient(circle at 50% 40%,#000,transparent 75%);
-      }}
-      .block-container{{padding-top:8vh;max-width:520px;}}
-      [data-testid="stForm"]{{
-        background:linear-gradient(160deg,rgba(255,255,255,.16),rgba(255,255,255,.06));
-        border:1px solid rgba(255,255,255,.26);border-radius:26px;padding:34px 34px 28px;
-        box-shadow:0 30px 70px rgba(0,0,0,.42), inset 0 1px 0 rgba(255,255,255,.28);
-        backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);
-      }}
-      .login-brand{{text-align:center;margin-bottom:6px;}}
-      .login-plate{{display:inline-flex;align-items:center;justify-content:center;
-        background:#ffffff;border:1px solid rgba(255,255,255,.7);border-radius:22px;padding:16px 26px;
-        box-shadow:0 14px 30px rgba(0,0,0,.28);}}
-      .login-title{{font-family:'Inter',sans-serif;font-size:30px;font-weight:900;letter-spacing:.4px;margin:18px 0 2px;
-        background:linear-gradient(90deg,#ffffff,#a7f3e8);-webkit-background-clip:text;background-clip:text;color:transparent;}}
-      .login-sub{{font-family:'Inter',sans-serif;color:#c3ece9;font-weight:600;font-size:13px;margin-bottom:6px;}}
-      .login-chips{{display:flex;gap:7px;justify-content:center;flex-wrap:wrap;margin:12px 0 20px;}}
-      .login-chip{{font-family:'Inter',sans-serif;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.24);
-        color:#e6fbf8;padding:4px 11px;border-radius:999px;font-size:11px;font-weight:700;}}
-      [data-testid="stForm"] label{{color:#dff6f3 !important;font-weight:700 !important;font-size:12.5px !important;}}
-      [data-testid="stForm"] input{{
-        background:rgba(255,255,255,.96) !important;border-radius:12px !important;
-        border:1px solid rgba(255,255,255,.55) !important;color:#0b2a33 !important;font-weight:600 !important;}}
-      [data-testid="stForm"] div[data-baseweb="input"]{{border-radius:12px !important;background:transparent !important;
-        border-color:transparent !important;}}
+      header[data-testid="stHeader"]{{display:none;}}
+      [data-testid="stAppViewContainer"]{{background:#0a141d;}}
+      .block-container{{padding:0 !important;max-width:100% !important;}}
+      [data-testid="stAppViewContainer"] .main .block-container{{padding-top:0 !important;}}
+
+      /* SOL MARKA PANELİ */
+      .lg-left{{position:relative;overflow:hidden;min-height:92vh;border-radius:0 26px 26px 0;
+        background:linear-gradient(155deg,#04222b 0%,#063540 48%,#0a5560 100%);
+        padding:46px 44px;display:flex;flex-direction:column;justify-content:space-between;}}
+      .lg-grain{{position:absolute;inset:0;opacity:.5;
+        background-image:linear-gradient(rgba(255,255,255,.04) 1px,transparent 1px),
+        linear-gradient(90deg,rgba(255,255,255,.04) 1px,transparent 1px);background-size:40px 40px;
+        -webkit-mask-image:radial-gradient(circle at 35% 25%,#000,transparent 78%);}}
+      .lg-brand{{position:relative;z-index:3;}}
+      .lg-lp{{display:inline-block;vertical-align:middle;background:rgba(255,255,255,.10);
+        border:1px solid rgba(255,255,255,.16);border-radius:13px;padding:11px 14px;}}
+      .lg-nm{{display:inline-block;vertical-align:middle;margin-left:15px;color:#eafffb;
+        font-weight:800;font-size:17px;letter-spacing:.5px;}}
+      .lg-nm small{{display:block;color:#8fd6cf;font-weight:600;font-size:10.5px;letter-spacing:2px;margin-top:2px;}}
+      .lg-hero{{position:relative;z-index:3;}}
+      .lg-hero h1{{color:#fff;font-size:31px;font-weight:900;line-height:1.18;letter-spacing:-.5px;margin:0;}}
+      .lg-hero h1 span{{background:linear-gradient(90deg,#2dd4bf,#22d3ee);-webkit-background-clip:text;
+        background-clip:text;color:transparent;}}
+      .lg-hero p{{color:#bfeee9;font-size:13.5px;line-height:1.7;margin-top:14px;max-width:400px;}}
+      .lg-stats{{position:relative;z-index:3;margin-top:22px;}}
+      .lg-stat{{display:inline-block;vertical-align:top;margin-right:32px;}}
+      .lg-stat .v{{color:#fff;font-size:21px;font-weight:900;}}
+      .lg-stat .l{{color:#8fd6cf;font-size:10.5px;font-weight:600;margin-top:2px;}}
+      .lg-foot{{position:relative;z-index:3;color:#7fb8b2;font-size:11px;
+        border-top:1px solid rgba(255,255,255,.1);padding-top:14px;}}
+
+      /* SAĞ FORM */
+      .lg-formwrap{{padding:8vh 8% 4vh;}}
+      .lg-secure{{display:inline-block;color:#2dd4bf;font-size:11px;font-weight:700;
+        background:rgba(45,212,191,.1);border:1px solid rgba(45,212,191,.25);
+        padding:5px 12px;border-radius:999px;margin-bottom:18px;}}
+      .lg-wel{{color:#e6f4f4;font-size:26px;font-weight:800;letter-spacing:-.3px;}}
+      .lg-wsub{{color:#7fb0b3;font-size:13.5px;margin:6px 0 26px;}}
+      [data-testid="stForm"]{{border:none !important;background:transparent !important;padding:0 !important;}}
+      [data-testid="stForm"] label{{color:#8fb3b8 !important;font-weight:600 !important;
+        font-size:12px !important;letter-spacing:.3px;text-transform:uppercase;}}
+      [data-testid="stForm"] input{{background:#0c1d29 !important;border:1px solid #1c3a44 !important;
+        border-radius:11px !important;color:#e6f4f4 !important;font-weight:500 !important;height:48px;}}
+      [data-testid="stForm"] div[data-baseweb="input"]{{background:transparent !important;border:none !important;}}
       [data-testid="stForm"] div[data-baseweb="base-input"]{{background:transparent !important;}}
-      [data-testid="stForm"] .stFormSubmitButton button{{
-        width:100%;background:linear-gradient(120deg,#14b8a6,#0ea5c4 55%,#22d3ee) !important;color:#04222b !important;
-        border:none !important;border-radius:13px !important;padding:11px 0 !important;font-weight:900 !important;
-        font-size:15px !important;letter-spacing:.4px;box-shadow:0 14px 28px rgba(20,184,166,.5) !important;
-        transition:transform .15s, box-shadow .15s;}}
-      [data-testid="stForm"] .stFormSubmitButton button:hover{{
-        transform:translateY(-2px);box-shadow:0 20px 38px rgba(20,184,166,.62) !important;}}
-      .login-foot{{text-align:center;color:#a7d9d5;font-size:11px;margin-top:14px;font-family:'Inter',sans-serif;}}
+      [data-testid="stForm"] .stFormSubmitButton button{{width:100%;height:50px;border-radius:12px;
+        background:linear-gradient(120deg,#0e7d8c,#14b8a6 55%,#22d3ee) !important;color:#04222b !important;
+        border:none !important;font-weight:800 !important;font-size:15px !important;
+        box-shadow:0 14px 30px rgba(20,184,166,.32) !important;transition:transform .15s,box-shadow .15s;}}
+      [data-testid="stForm"] .stFormSubmitButton button:hover{{transform:translateY(-2px);
+        box-shadow:0 20px 38px rgba(20,184,166,.45) !important;}}
+      .lg-hint{{text-align:center;color:#5f7a7f;font-size:11.5px;margin-top:20px;}}
+      [data-testid="stAlert"]{{background:rgba(251,113,133,.12) !important;border:1px solid rgba(251,113,133,.4) !important;
+        border-radius:11px !important;color:#fecdd3 !important;}}
+      [data-testid="stAlert"] *{{color:#fecdd3 !important;}}
     </style>
     """, unsafe_allow_html=True)
 
-    with st.form("login_form"):
+    L, R = st.columns([1, 1], gap="large")
+    with L:
         st.markdown(f"""
-        <div class="login-brand">
-          <div class="login-plate">{logo_html}</div>
-          <div class="login-title">ARAKONAK GES</div>
-          <div class="login-sub">Proje Kontrol Panosu · Güvenli Giriş</div>
-          <div class="login-chips">
-            <span class="login-chip">⚡ 88,14 MWp DC</span>
-            <span class="login-chip">📍 Muş / Bulanık</span>
-            <span class="login-chip">🔒 Yetkili Erişim</span>
+        <div class="lg-left">
+          <div class="lg-grain"></div>
+          <svg style="position:absolute;left:0;right:0;bottom:-10px;width:100%;height:260px"
+               viewBox="0 0 560 260" preserveAspectRatio="none">
+            <circle cx="450" cy="55" r="50" fill="#14b8a6" opacity=".18"/>
+            <circle cx="450" cy="55" r="30" fill="#2dd4bf" opacity=".28"/>
+            {_panels()}
+          </svg>
+          <div class="lg-brand"><span class="lg-lp">{logo_html}</span>
+            <span class="lg-nm">NAS ENERJİ A.Ş.<small>EPC · PROJE KONTROL</small></span></div>
+          <div class="lg-hero"><h1>Güneşten<br><span>veriye, kontrole.</span></h1>
+            <p>ARAKONAK GES 88,14 MWp güneş santralinin ilerleme, bütçe ve
+               performansını tek panelden yönetin.</p>
+            <div class="lg-stats">
+              <div class="lg-stat"><div class="v">88,14</div><div class="l">MWp DC</div></div>
+              <div class="lg-stat"><div class="v">$14.43M</div><div class="l">EPC BÜTÇE</div></div>
+              <div class="lg-stat"><div class="v">197</div><div class="l">İŞ KALEMİ</div></div>
+            </div>
           </div>
+          <div class="lg-foot">© 2026 NAS ENERJİ A.Ş. · Muş / Bulanık · Tüm hakları saklıdır.</div>
         </div>""", unsafe_allow_html=True)
-        usr = st.text_input("Kullanıcı adı", autocomplete="username", placeholder="kullanıcı adınız")
-        pw = st.text_input("Parola", type="password", autocomplete="current-password", placeholder="parolanız")
-        ok = st.form_submit_button("Giriş Yap  →", use_container_width=True)
-        st.markdown('<div class="login-foot">Test: admin / arakonak2025 · viewer / viewer2025 — '
-                    'dağıtımdan önce Secrets ile değiştirin.</div>', unsafe_allow_html=True)
+    with R:
+        st.markdown('<div class="lg-formwrap">', unsafe_allow_html=True)
+        st.markdown('<div class="lg-secure">🔒 GÜVENLİ ERİŞİM</div>'
+                    '<div class="lg-wel">Oturum Aç</div>'
+                    '<div class="lg-wsub">ARAKONAK GES proje kontrol panosuna hoş geldiniz.</div>',
+                    unsafe_allow_html=True)
+        with st.form("login_form"):
+            usr = st.text_input("Kullanıcı adı", autocomplete="username", placeholder="kullanıcı adınızı girin")
+            pw = st.text_input("Parola", type="password", autocomplete="current-password", placeholder="parolanız")
+            ok = st.form_submit_button("Giriş Yap  →", width="stretch")
+        st.markdown('<div class="lg-hint">Erişim yalnızca yetkili proje personeline açıktır.</div>',
+                    unsafe_allow_html=True)
+        st.markdown('</div>', unsafe_allow_html=True)
 
-    if ok:
-        rec = _users().get(usr.strip())
-        if rec and _verify(pw, rec.get("hash", "")):
-            st.session_state.auth_user = {
-                "username": usr.strip(),
-                "name": rec.get("name", usr.strip()),
-                "role": rec.get("role", "viewer"),
-            }
-            st.rerun()
-        else:
-            st.error("Kullanıcı adı veya parola hatalı.")
+        if ok:
+            rec = _users().get(usr.strip())
+            if rec and _verify(pw, rec.get("hash", "")):
+                st.session_state.auth_user = {
+                    "username": usr.strip(),
+                    "name": rec.get("name", usr.strip()),
+                    "role": rec.get("role", "viewer"),
+                }
+                st.rerun()
+            elif not usr.strip() or not pw:
+                st.warning("Lütfen kullanıcı adı ve parolayı girin.")
+            elif not rec:
+                st.error("❌ Böyle bir kullanıcı bulunamadı.")
+            else:
+                st.error("❌ Hatalı şifre girdiniz. Lütfen tekrar deneyin.")
     return False

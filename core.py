@@ -169,8 +169,8 @@ def s_curve_from_snapshots(snaps: pd.DataFrame) -> pd.DataFrame:
     if snaps is None or snaps.empty:
         return pd.DataFrame(columns=["date", "pvPct", "evPct", "acPct"])
     s = snaps.copy()
-    s["date"] = pd.to_datetime(s["ts"])
-    s = s.sort_values("date")
+    s["date"] = pd.to_datetime(s["ts"]).dt.normalize()
+    s = s.sort_values("date").groupby("date", as_index=False).last()
     s["pvPct"] = s["pv_pct"]
     s["evPct"] = s["ev_pct"]
     s["acPct"] = (s["ac_usd"] / s["bac"] * 100).where(s["bac"] > 0, 0)

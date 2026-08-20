@@ -65,8 +65,8 @@ def seed_all(conn: sqlite3.Connection) -> None:
     conn.execute("DELETE FROM snapshots")
     _ensure_setting(conn, "proj_name", "ARAKONAK GES")
     _ensure_setting(conn, "proj_loc", "Muş / Bulanık")
-    _ensure_setting(conn, "start", (pd.Timestamp.today().normalize() - pd.Timedelta(days=60)).strftime("%Y-%m-%d"))
-    _ensure_setting(conn, "end", (pd.Timestamp.today().normalize() + pd.Timedelta(days=300)).strftime("%Y-%m-%d"))
+    _ensure_setting(conn, "start", "2026-06-01")
+    _ensure_setting(conn, "end", "2026-11-30")
     conn.commit()
 
 
@@ -135,7 +135,7 @@ def record_daily(conn, per_scope: dict, note="günlük"):
     Böylece her gün girilen değerler S-eğrisinde günlük nokta olur.
     """
     today = pd.Timestamp.today().strftime("%Y-%m-%d")
-    now = pd.Timestamp.today().strftime("%Y-%m-%d %H:%M")
+    now = today  # S-eğrisi günlük olduğu için tarihe sabitle (saat yok)
     cur = conn.cursor()
     for scope, m in per_scope.items():
         cur.execute("DELETE FROM snapshots WHERE substr(ts,1,10)=? AND scope=?", (today, scope))
