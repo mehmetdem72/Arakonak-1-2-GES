@@ -260,9 +260,9 @@ meta = {
 }
 
 # ────────────────────── SOL RAY ──────────────────────
-PAGES = ["Komuta Paneli", "İş Kalemleri", "S-Eğrisi", "Maliyet & EVM", "Nakit & Hakediş",
+PAGES = ["Komuta Paneli", "İş Kalemleri", "Maliyet & EVM", "Nakit & Hakediş",
          "Risk & Kalite", "Stok", "İSG", "Baseline", "Kayıt Defteri", "Rapor & Yedek", "Ayarlar"]
-ICON = {"Komuta Paneli": "▦", "İş Kalemleri": "▤", "S-Eğrisi": "📈", "Maliyet & EVM": "₺",
+ICON = {"Komuta Paneli": "▦", "İş Kalemleri": "▤", "Maliyet & EVM": "₺",
         "Nakit & Hakediş": "💵", "Risk & Kalite": "⚠", "Stok": "📦", "İSG": "🦺",
         "Baseline": "📌", "Kayıt Defteri": "📝", "Rapor & Yedek": "⭳", "Ayarlar": "⚙"}
 with st.sidebar:
@@ -490,6 +490,22 @@ if page == "Komuta Paneli":
         st.plotly_chart(charts.s_curve(baseline, snaps_use, k["planPct"], k["ilerleme"],
                                        xstart=meta["start"], xend=meta["end"]),
                         width="stretch", config=PLOT)
+        if baseline.empty:
+            st.caption("💡 Plan çizgisi için aşağıdaki **Plan Programı**'na aylık Plan % girin. "
+                       "Gerçek çizgi İş Kalemleri'ne veri girdikçe ilerler.")
+        with st.expander("📅 Plan Programı — aylık planlanan % (plan çizgisini buradan çizin)"):
+            _pl_default = [{"Ay": r["Ay"], "Plan %": r["Plan %"]} for r in core.month_rows(meta["start"], meta["end"])]
+            _planline = storage.load_table(conn, "planline", _pl_default)
+            if "Gerçek %" in _planline.columns:
+                _planline = _planline.drop(columns=["Gerçek %"])
+            _pl_ed = st.data_editor(_planline, width="stretch", hide_index=True, num_rows="dynamic",
+                                    disabled=not ADMIN, key="planline_ed",
+                                    column_config={
+                                        "Ay": st.column_config.TextColumn("Ay (YYYY-AA)"),
+                                        "Plan %": st.column_config.NumberColumn("Plan % (kümülatif hedef)",
+                                                                                min_value=0, max_value=100, step=1)})
+            if ADMIN and not _pl_ed.equals(_planline):
+                storage.save_table(conn, "planline", _pl_ed); st.rerun()
 
     with st.container(border=True):
         st.markdown('<div class="panel-ttl">Disiplin Matrisi — Koşullu Biçimlendirme</div>', unsafe_allow_html=True)
@@ -639,48 +655,6 @@ elif page == "Maliyet & EVM":
         st.plotly_chart(charts.spi_cpi_trend(core.spi_cpi_series_gran(storage.load_snapshots(conn, scope), gran_sc)),
                         width="stretch", config=PLOT)
         st.caption("1.0 çizgisi hedef. SPI<1 zaman geriliği, CPI<1 maliyet aşımı. Veri girdikçe eğilim oluşur.")
-
-elif page == "S-Eğrisi":
-    snaps_raw = storage.load_snapshots(conn, scope)
-
-    st.markdown('<div class="panel-ttl">Plan Programı — aylık planlanan % (elle giriş)</div>', unsafe_allow_html=True)
-    st.caption("Her ay için **planlanan kümülatif ilerleme %**'sini girin — S-eğrisinin **plan çizgisi** bundan çizilir. "
-               "**Gerçekleşen** çizgi ise İş Kalemleri'ne girdiğiniz değerlerden otomatik oluşur.")
-    _pl_default = [{"Ay": r["Ay"], "Plan %": r["Plan %"]} for r in core.month_rows(meta["start"], meta["end"])]
-    planline = storage.load_table(conn, "planline", _pl_default)
-    if "Gerçek %" in planline.columns:
-        planline = planline.drop(columns=["Gerçek %"])
-    pl_ed = st.data_editor(planline, width="stretch", hide_index=True, num_rows="dynamic",
-                           disabled=not ADMIN, key="planline_ed",
-                           column_config={
-                               "Ay": st.column_config.TextColumn("Ay (YYYY-AA)"),
-                               "Plan %": st.column_config.NumberColumn("Plan % (kümülatif hedef)", min_value=0, max_value=100, step=1)})
-    if ADMIN and not pl_ed.equals(planline):
-        storage.save_table(conn, "planline", pl_ed); st.rerun()
-
-    base_m, _ = core.manual_curve(pl_ed, k["BAC"])
-    baseline = base_m
-    has_plan = not base_m.empty
-
-    with st.container(border=True):
-        st.markdown('<div class="panel-ttl">Kümülatif İlerleme S-Eğrisi</div>', unsafe_allow_html=True)
-        gran = gran_buttons("scurve_page")
-        snaps = core.scurve_series_gran(snaps_raw, gran)
-        st.plotly_chart(charts.s_curve(baseline, snaps, k["planPct"], k["ilerleme"],
-                                       xstart=meta["start"], xend=meta["end"]),
-                        width="stretch", config=PLOT)
-    if not has_plan:
-        st.info("💡 **Plan çizgisi** için yukarıdaki tabloya aylık **Plan %** girin. "
-                "**Gerçek** çizgi İş Kalemleri'ne veri girdikçe otomatik ilerler.")
-    else:
-        st.caption(f"Görünüm: **{gran}** · Plan = sizin girdiğiniz hedefler · Gerçek = İş Kalemleri verisinden.")
-    if not snaps_raw.empty:
-        with st.expander("İş Kalemleri'nden oluşan günlük kayıtlar"):
-            st.dataframe(snaps_raw[["ts", "pv_pct", "ev_pct", "ac_usd", "bac", "note"]].rename(columns={
-                "ts": "Tarih", "pv_pct": "Plan %", "ev_pct": "Gerçek %", "ac_usd": "Fiili $", "bac": "BAC $", "note": "Not"}),
-                width="stretch", hide_index=True)
-            if ADMIN and st.button("Günlük kayıtları temizle"):
-                storage.clear_snapshots(conn); st.rerun()
 
 elif page == "Nakit & Hakediş":
     st.markdown('<div style="background:linear-gradient(90deg,rgba(34,211,238,.10),rgba(139,92,246,.06));'
