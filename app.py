@@ -260,10 +260,10 @@ meta = {
 }
 
 # ────────────────────── SOL RAY ──────────────────────
-PAGES = ["Komuta Paneli", "İş Kalemleri", "Maliyet & EVM", "S-Eğrisi", "Trend & Nakit",
+PAGES = ["Komuta Paneli", "İş Kalemleri", "Maliyet & EVM", "S-Eğrisi", "Nakit & Hakediş",
          "Risk & Kalite", "Baseline", "Stok", "İSG", "Dışa Aktar", "Kayıt Defteri", "Veri", "Ayarlar"]
 ICON = {"Komuta Paneli": "▦", "İş Kalemleri": "▤", "Maliyet & EVM": "₺", "S-Eğrisi": "📈",
-        "Trend & Nakit": "📉", "Risk & Kalite": "⚠", "Baseline": "📌", "Stok": "📦", "İSG": "🦺",
+        "Nakit & Hakediş": "💵", "Risk & Kalite": "⚠", "Baseline": "📌", "Stok": "📦", "İSG": "🦺",
         "Dışa Aktar": "⭳", "Kayıt Defteri": "📝", "Veri": "🗄", "Ayarlar": "⚙"}
 with st.sidebar:
     _logo_b64 = LOGO_WHITE if theme == "dark" else LOGO_BLACK
@@ -350,6 +350,20 @@ def kpi_ribbon():
     </div>""", unsafe_allow_html=True)
 
 
+def gran_buttons(key: str, default: str = "Günlük") -> str:
+    """Grafik üstünde Günlük / Haftalık / Aylık seçim butonları. Seçili granülariteyi döndürür."""
+    sk = f"gran_{key}"
+    if sk not in st.session_state:
+        st.session_state[sk] = default
+    cols = st.columns([1, 1, 1, 5])
+    for i, lb in enumerate(["Günlük", "Haftalık", "Aylık"]):
+        typ = "primary" if st.session_state[sk] == lb else "secondary"
+        if cols[i].button(lb, key=f"{sk}_{lb}", type=typ, use_container_width=True):
+            st.session_state[sk] = lb
+            st.rerun()
+    return st.session_state[sk]
+
+
 def items_table_html(view: pd.DataFrame, limit: int = 400):
     rows = ""
     for _, r in view.head(limit).iterrows():
@@ -423,9 +437,9 @@ if page == "Komuta Paneli":
     gag = core.group_agg(base)
     snaps_items = core.s_curve_from_snapshots(storage.load_snapshots(conn, scope))
     _plan = storage.load_table(conn, "planline", core.month_rows(meta["start"], meta["end"]))
-    _bm, _sm = core.manual_curve(_plan, k["BAC"])
-    baseline = _bm            # yalnızca elle girilen plan (otomatik model yok)
-    snaps = _sm if not _sm.empty else snaps_items
+    _bm, _ = core.manual_curve(_plan, k["BAC"])
+    baseline = _bm            # plan = yalnızca elle girilen Plan Programı
+    snaps = snaps_items       # gerçek = İş Kalemleri verisi
     spi = "—" if k["SPI"] is None else f"{k['SPI']:.2f}"
     spi_arrow = "" if k["SPI"] is None else ("▲" if k["SPI"] >= 1 else "▼")
     spi_col = MUTED if k["SPI"] is None else (TEAL if k["SPI"] >= 1 else RED)
@@ -469,8 +483,11 @@ if page == "Komuta Paneli":
             st.plotly_chart(charts.group_gauges(gag), width="stretch", config=PLOT)
 
     with st.container(border=True):
-        st.markdown('<div class="panel-ttl">Kümülatif S-Eğrisi (günlük)</div>', unsafe_allow_html=True)
-        st.plotly_chart(charts.s_curve(baseline, snaps, k["planPct"], k["ilerleme"],
+        st.markdown('<div class="panel-ttl">Kümülatif S-Eğrisi</div>', unsafe_allow_html=True)
+        gran = gran_buttons("dash_scurve")
+        snaps_g = core.scurve_series_gran(storage.load_snapshots(conn, scope), gran)
+        snaps_use = snaps_g if not snaps_g.empty else snaps
+        st.plotly_chart(charts.s_curve(baseline, snaps_use, k["planPct"], k["ilerleme"],
                                        xstart=meta["start"], xend=meta["end"]),
                         width="stretch", config=PLOT)
 
@@ -481,9 +498,6 @@ if page == "Komuta Paneli":
 elif page == "İş Kalemleri":
     kpi_ribbon()
     if ADMIN:
-        st.caption("✏️ **Manuel giriş:** Aşağıdaki **Düzenleme modu**'nu açın; kalemler **Plan % / Gerçek % / "
-                   "Fiili Maliyet** kutularıyla açılır. Değerleri yazıp **💾 Kaydet**'e basın — grafiklere anında yansır. "
-                   "İstersen önce **Disiplin** seçip listeyi daraltabilirsin.")
         cadd, cdel = st.columns(2)
         with cadd:
             with st.expander("➕ Yeni İş Kalemi Ekle", expanded=False):
@@ -594,9 +608,6 @@ elif page == "İş Kalemleri":
                 st.toast("Değişiklik yok.")
             st.rerun()
     else:
-        if ADMIN:
-            st.info("📋 Salt görünüm. Değer girmek için yukarıdaki **✏️ Düzenleme modu**'nu açın "
-                    "(istersen önce Disiplin seçip listeyi daralt).")
         items_table_html(view)
 
 elif page == "Maliyet & EVM":
@@ -624,42 +635,45 @@ elif page == "Maliyet & EVM":
         st.plotly_chart(charts.evm_waterfall(k), width="stretch", config=PLOT)
     with st.container(border=True):
         st.markdown('<div class="panel-ttl">SPI / CPI Trend (zaman içinde performans)</div>', unsafe_allow_html=True)
-        st.plotly_chart(charts.spi_cpi_trend(core.spi_cpi_series(storage.load_snapshots(conn, scope))),
+        gran_sc = gran_buttons("spicpi")
+        st.plotly_chart(charts.spi_cpi_trend(core.spi_cpi_series_gran(storage.load_snapshots(conn, scope), gran_sc)),
                         width="stretch", config=PLOT)
         st.caption("1.0 çizgisi hedef. SPI<1 zaman geriliği, CPI<1 maliyet aşımı. Veri girdikçe eğilim oluşur.")
 
 elif page == "S-Eğrisi":
     snaps_raw = storage.load_snapshots(conn, scope)
-    snaps_items = core.s_curve_from_snapshots(snaps_raw)
 
-    st.markdown('<div class="panel-ttl">Plan Programı — aylık planlanan/gerçekleşen (elle giriş)</div>', unsafe_allow_html=True)
-    st.caption("Her ay için **planlanan** kümülatif %'yi (ve istersen **gerçekleşen** %'yi) elle girin. "
-               "Girdiğinizde S-eğrisi bu değerlerden çizilir; boş bırakırsanız tarih-modeli ve İş Kalemleri verisi kullanılır.")
-    planline = storage.load_table(conn, "planline", core.month_rows(meta["start"], meta["end"]))
+    st.markdown('<div class="panel-ttl">Plan Programı — aylık planlanan % (elle giriş)</div>', unsafe_allow_html=True)
+    st.caption("Her ay için **planlanan kümülatif ilerleme %**'sini girin — S-eğrisinin **plan çizgisi** bundan çizilir. "
+               "**Gerçekleşen** çizgi ise İş Kalemleri'ne girdiğiniz değerlerden otomatik oluşur.")
+    _pl_default = [{"Ay": r["Ay"], "Plan %": r["Plan %"]} for r in core.month_rows(meta["start"], meta["end"])]
+    planline = storage.load_table(conn, "planline", _pl_default)
+    if "Gerçek %" in planline.columns:
+        planline = planline.drop(columns=["Gerçek %"])
     pl_ed = st.data_editor(planline, width="stretch", hide_index=True, num_rows="dynamic",
                            disabled=not ADMIN, key="planline_ed",
                            column_config={
                                "Ay": st.column_config.TextColumn("Ay (YYYY-AA)"),
-                               "Plan %": st.column_config.NumberColumn("Plan % (kümülatif)", min_value=0, max_value=100, step=1),
-                               "Gerçek %": st.column_config.NumberColumn("Gerçek % (kümülatif)", min_value=0, max_value=100, step=1)})
+                               "Plan %": st.column_config.NumberColumn("Plan % (kümülatif hedef)", min_value=0, max_value=100, step=1)})
     if ADMIN and not pl_ed.equals(planline):
         storage.save_table(conn, "planline", pl_ed); st.rerun()
 
-    base_m, snaps_m = core.manual_curve(pl_ed, k["BAC"])
-    baseline = base_m                              # yalnızca elle girilen plan
-    snaps = snaps_m if not snaps_m.empty else snaps_items
+    base_m, _ = core.manual_curve(pl_ed, k["BAC"])
+    baseline = base_m
     has_plan = not base_m.empty
 
     with st.container(border=True):
-        st.markdown('<div class="panel-ttl">Kümülatif İlerleme S-Eğrisi · elle girilen değerler</div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-ttl">Kümülatif İlerleme S-Eğrisi</div>', unsafe_allow_html=True)
+        gran = gran_buttons("scurve_page")
+        snaps = core.scurve_series_gran(snaps_raw, gran)
         st.plotly_chart(charts.s_curve(baseline, snaps, k["planPct"], k["ilerleme"],
                                        xstart=meta["start"], xend=meta["end"]),
                         width="stretch", config=PLOT)
     if not has_plan:
-        st.info("Plan çizgisi için yukarıdaki **Plan Programı** tablosuna aylık **Plan %** girin. "
-                "Otomatik/tahmini plan çizgisi kullanılmaz — grafik yalnızca sizin girdiğiniz değerleri gösterir.")
+        st.info("💡 **Plan çizgisi** için yukarıdaki tabloya aylık **Plan %** girin. "
+                "**Gerçek** çizgi İş Kalemleri'ne veri girdikçe otomatik ilerler.")
     else:
-        st.caption("Plan ve gerçekleşen çizgileri tamamen sizin girdiğiniz değerlerden oluşuyor.")
+        st.caption(f"Görünüm: **{gran}** · Plan = sizin girdiğiniz hedefler · Gerçek = İş Kalemleri verisinden.")
     if not snaps_raw.empty:
         with st.expander("İş Kalemleri'nden oluşan günlük kayıtlar"):
             st.dataframe(snaps_raw[["ts", "pv_pct", "ev_pct", "ac_usd", "bac", "note"]].rename(columns={
@@ -668,25 +682,40 @@ elif page == "S-Eğrisi":
             if ADMIN and st.button("Günlük kayıtları temizle"):
                 storage.clear_snapshots(conn); st.rerun()
 
-elif page == "Trend & Nakit":
-    revised = core.kpis(base)["BAC"]
+elif page == "Nakit & Hakediş":
+    st.markdown('<div style="background:linear-gradient(90deg,rgba(34,211,238,.10),rgba(139,92,246,.06));'
+                'border:1px solid #12324a;border-radius:12px;padding:12px 16px;font-size:12.5px;'
+                'color:#cfe3f7;margin-bottom:14px">💵 <b>Bu sayfa projenin parasal akışını yönetir:</b> '
+                'aylık <b>planlanan vs fiili harcama</b> (nakit akışı), bütçeyi değiştiren <b>ilave işler (VO)</b> '
+                've dönemsel <b>hakediş/ödemeler</b>. Böylece "ne kadar harcadık, bütçe nasıl değişti, ne kadar ödeme aldık" '
+                'sorularını tek yerden görürsün.</div>', unsafe_allow_html=True)
+
     vo = storage.load_table(conn, "vo", [])
     approved_vo = 0.0
-    if not vo.empty and "durum" in vo.columns and "tutar" in vo.columns:
-        approved_vo = float(pd.to_numeric(vo[vo["durum"] == "Onaylı"]["tutar"], errors="coerce").fillna(0).sum())
-    c = st.columns(3)
+    if not vo.empty and "Durum" in vo.columns and "Tutar ($)" in vo.columns:
+        approved_vo = float(pd.to_numeric(vo[vo["Durum"] == "Onaylı"]["Tutar ($)"], errors="coerce").fillna(0).sum())
+    pay = storage.load_table(conn, "payments", [])
+    paid = 0.0
+    if not pay.empty and "Durum" in pay.columns and "Tutar ($)" in pay.columns:
+        paid = float(pd.to_numeric(pay[pay["Durum"] == "Ödendi"]["Tutar ($)"], errors="coerce").fillna(0).sum())
+
+    c = st.columns(4)
     c[0].metric("Orijinal Bütçe (BAC)", core.fmt_money(k["BAC"]))
-    c[1].metric("Onaylı Değişiklik (VO)", core.fmt_money(approved_vo))
+    c[1].metric("Onaylı İlave İş (VO)", core.fmt_money(approved_vo))
     c[2].metric("Revize Bütçe", core.fmt_money(k["BAC"] + approved_vo))
+    c[3].metric("Ödenen Hakediş", core.fmt_money(paid))
 
     with st.container(border=True):
-        st.markdown('<div class="panel-ttl">Nakit Akışı — Aylık Planlanan vs Fiili</div>', unsafe_allow_html=True)
+        st.markdown('<div class="panel-ttl">Nakit Akışı — Aylık Planlanan vs Fiili Harcama</div>', unsafe_allow_html=True)
         bl = core.s_curve_baseline(k["BAC"], meta["start"], meta["end"])
         st.plotly_chart(charts.cashflow_chart(core.cashflow_series(bl, storage.load_snapshots(conn, scope))),
                         width="stretch", config=PLOT)
-        st.caption("Planlanan harcama baseline eğrisinden türetilir; fiili harcama girdiğiniz Fiili Maliyet (AC) verisinden.")
+        st.caption("📊 Mor = plana göre o ay harcanması beklenen tutar · Camgöbeği = İş Kalemleri'ne girdiğiniz "
+                   "Fiili Maliyet'ten oluşan gerçek harcama. Fiili harcama girmedikçe gerçek çubuklar boş kalır.")
 
-    st.markdown('<div class="panel-ttl">Değişiklik Emirleri (VO) — keşif artışı / ilave iş</div>', unsafe_allow_html=True)
+    st.markdown('<div class="panel-ttl">Değişiklik Emirleri (VO) — keşif dışı / ilave işler</div>', unsafe_allow_html=True)
+    st.caption("Sözleşme dışı ortaya çıkan ilave işleri buraya yazın. **Durum = Onaylı** yaptığınızda tutar "
+               "otomatik **Revize Bütçe**'ye eklenir.")
     vo_def = [{"VO No": "VO-001", "Açıklama": "", "Tutar ($)": 0.0, "Durum": "Beklemede", "Tarih": ""}]
     vo = storage.load_table(conn, "vo", vo_def)
     vo_ed = st.data_editor(vo, width="stretch", hide_index=True, num_rows="dynamic",
@@ -697,6 +726,8 @@ elif page == "Trend & Nakit":
         storage.save_table(conn, "vo", vo_ed); st.rerun()
 
     st.markdown('<div class="panel-ttl">Hakediş / Ödeme Takibi</div>', unsafe_allow_html=True)
+    st.caption("İşverene sunulan dönemsel hakedişleri ve ödeme durumlarını izleyin. "
+               "**Durum = Ödendi** olanların toplamı üstteki 'Ödenen Hakediş' kartına yansır.")
     pay_def = [{"Hakediş No": "HK-01", "Dönem": "", "Tutar ($)": 0.0, "Durum": "Hazırlanıyor", "Tarih": ""}]
     pay = storage.load_table(conn, "payments", pay_def)
     pay_ed = st.data_editor(pay, width="stretch", hide_index=True, num_rows="dynamic",
@@ -707,32 +738,82 @@ elif page == "Trend & Nakit":
         storage.save_table(conn, "payments", pay_ed); st.rerun()
 
 elif page == "Risk & Kalite":
-    st.markdown('<div class="panel-ttl">Risk Kaydı (Risk Register) — olasılık × etki</div>', unsafe_allow_html=True)
+    st.markdown('<div style="background:linear-gradient(90deg,rgba(251,113,133,.10),rgba(34,211,238,.05));'
+                'border:1px solid #12324a;border-radius:12px;padding:12px 16px;font-size:12.5px;'
+                'color:#cfe3f7;margin-bottom:14px">⚠️ <b>Risk kaydı</b> olası sorunları (olasılık × etki = skor) '
+                've <b>kalite uygunsuzluklarını (NCR)</b> tek yerden izler. Skoru yüksek riskleri önceliklendirin.</div>',
+                unsafe_allow_html=True)
+
     risk_def = [{"Risk": "Evirici tedarik gecikmesi", "Olasılık (1-5)": 3, "Etki (1-5)": 4,
                  "Aksiyon": "Tedarikçi ile haftalık takip", "Sorumlu": "Satınalma", "Durum": "Açık"}]
     risks = storage.load_table(conn, "risks", risk_def)
-    risks_ed = st.data_editor(risks, width="stretch", hide_index=True, num_rows="dynamic",
-                              disabled=not ADMIN, key="risk_ed",
-                              column_config={
-                                  "Olasılık (1-5)": st.column_config.NumberColumn(min_value=1, max_value=5, step=1),
-                                  "Etki (1-5)": st.column_config.NumberColumn(min_value=1, max_value=5, step=1),
-                                  "Durum": st.column_config.SelectboxColumn(options=["Açık", "İzleniyor", "Kapandı"])})
-    if not risks_ed.empty and "Olasılık (1-5)" in risks_ed:
-        rk = risks_ed.copy()
-        rk["Skor"] = pd.to_numeric(rk["Olasılık (1-5)"], errors="coerce").fillna(0) * pd.to_numeric(rk["Etki (1-5)"], errors="coerce").fillna(0)
-        yuksek = int((rk["Skor"] >= 12).sum())
-        st.caption(f"Toplam {len(rk)} risk · yüksek (skor ≥12): **{yuksek}**")
-    if ADMIN and not risks_ed.equals(risks):
-        storage.save_table(conn, "risks", risks_ed); st.rerun()
-
-    st.markdown('<div class="panel-ttl">Kalite — Uygunsuzluk (NCR) Kaydı</div>', unsafe_allow_html=True)
     ncr_def = [{"NCR No": "NCR-001", "Konu": "", "Disiplin": "", "Durum": "Açık", "Tarih": ""}]
     ncr = storage.load_table(conn, "ncr", ncr_def)
-    ncr_ed = st.data_editor(ncr, width="stretch", hide_index=True, num_rows="dynamic",
-                            disabled=not ADMIN, key="ncr_ed",
-                            column_config={"Durum": st.column_config.SelectboxColumn(options=["Açık", "Düzeltiliyor", "Kapandı"])})
-    if ADMIN and not ncr_ed.equals(ncr):
-        storage.save_table(conn, "ncr", ncr_ed); st.rerun()
+
+    # özet kartlar
+    rk = risks.copy()
+    if not rk.empty and "Olasılık (1-5)" in rk.columns:
+        rk["Skor"] = (pd.to_numeric(rk["Olasılık (1-5)"], errors="coerce").fillna(0)
+                      * pd.to_numeric(rk["Etki (1-5)"], errors="coerce").fillna(0))
+    else:
+        rk["Skor"] = []
+    yuksek = int((rk["Skor"] >= 12).sum()) if len(rk) else 0
+    acik_ncr = int((ncr["Durum"] != "Kapandı").sum()) if not ncr.empty and "Durum" in ncr.columns else 0
+    cS = st.columns(3)
+    cS[0].metric("Toplam Risk", len(rk))
+    cS[1].metric("Yüksek Risk (skor ≥12)", yuksek)
+    cS[2].metric("Açık NCR", acik_ncr)
+
+    edit_rk = st.toggle("✏️ Düzenleme modu", value=False, key="rk_edit",
+                        help="Açıkken risk ve NCR tablolarını düzenleyebilirsiniz.") if ADMIN else False
+
+    st.markdown('<div class="panel-ttl">Risk Kaydı (Risk Register)</div>', unsafe_allow_html=True)
+    if edit_rk:
+        risks_ed = st.data_editor(risks, width="stretch", hide_index=True, num_rows="dynamic", key="risk_ed",
+                                  column_config={
+                                      "Olasılık (1-5)": st.column_config.NumberColumn(min_value=1, max_value=5, step=1),
+                                      "Etki (1-5)": st.column_config.NumberColumn(min_value=1, max_value=5, step=1),
+                                      "Durum": st.column_config.SelectboxColumn(options=["Açık", "İzleniyor", "Kapandı"])})
+        if not risks_ed.equals(risks):
+            storage.save_table(conn, "risks", risks_ed); st.rerun()
+    else:
+        rows = ""
+        for _, r in rk.sort_values("Skor", ascending=False).iterrows():
+            sk = r["Skor"]
+            col = "#fb7185" if sk >= 12 else ("#fbbf24" if sk >= 6 else "#34d399")
+            dcol = {"Açık": "#fb7185", "İzleniyor": "#fbbf24", "Kapandı": "#34d399"}.get(str(r.get("Durum", "")), "#5f7a99")
+            rows += (f'<tr><td class="mx-name">{r.get("Risk","")}</td>'
+                     f'<td style="text-align:center;color:#9fc3e0">{int(r.get("Olasılık (1-5)",0) or 0)}</td>'
+                     f'<td style="text-align:center;color:#9fc3e0">{int(r.get("Etki (1-5)",0) or 0)}</td>'
+                     f'<td style="text-align:center"><span class="mx-pill" style="background:{col}22;color:{col}">{int(sk)}</span></td>'
+                     f'<td style="color:#c7e8e4;font-size:11px">{r.get("Aksiyon","")}</td>'
+                     f'<td style="color:#9fc3e0;font-size:11px">{r.get("Sorumlu","")}</td>'
+                     f'<td style="text-align:center;color:{dcol};font-weight:800;font-size:11px">{r.get("Durum","")}</td></tr>')
+        st.markdown(f'<table class="mx"><tr><th>RİSK</th><th style="text-align:center">OLASILIK</th>'
+                    f'<th style="text-align:center">ETKİ</th><th style="text-align:center">SKOR</th>'
+                    f'<th>AKSİYON</th><th>SORUMLU</th><th style="text-align:center">DURUM</th></tr>{rows}</table>',
+                    unsafe_allow_html=True)
+
+    st.markdown('<div class="panel-ttl">Kalite — Uygunsuzluk (NCR) Kaydı</div>', unsafe_allow_html=True)
+    if edit_rk:
+        ncr_ed = st.data_editor(ncr, width="stretch", hide_index=True, num_rows="dynamic", key="ncr_ed",
+                                column_config={"Durum": st.column_config.SelectboxColumn(options=["Açık", "Düzeltiliyor", "Kapandı"])})
+        if not ncr_ed.equals(ncr):
+            storage.save_table(conn, "ncr", ncr_ed); st.rerun()
+    else:
+        rows = ""
+        for _, r in ncr.iterrows():
+            dcol = {"Açık": "#fb7185", "Düzeltiliyor": "#fbbf24", "Kapandı": "#34d399"}.get(str(r.get("Durum", "")), "#5f7a99")
+            rows += (f'<tr><td class="mx-name">{r.get("NCR No","")}</td>'
+                     f'<td style="color:#c7e8e4">{r.get("Konu","")}</td>'
+                     f'<td style="color:#9fc3e0;font-size:11px">{r.get("Disiplin","")}</td>'
+                     f'<td style="color:#5f7a99;font-size:11px">{r.get("Tarih","")}</td>'
+                     f'<td style="text-align:center;color:{dcol};font-weight:800;font-size:11px">{r.get("Durum","")}</td></tr>')
+        st.markdown(f'<table class="mx"><tr><th>NCR NO</th><th>KONU</th><th>DİSİPLİN</th>'
+                    f'<th>TARİH</th><th style="text-align:center">DURUM</th></tr>{rows}</table>',
+                    unsafe_allow_html=True)
+    if not ADMIN:
+        st.caption("Görüntüleyici modu — düzenleme için yönetici girişi gerekir.")
 
 elif page == "Baseline":
     bl = storage.load_baseline(conn)

@@ -297,8 +297,9 @@ def manual_curve(planline_df: pd.DataFrame, bac: float):
     d = planline_df.copy()
     d["date"] = pd.to_datetime(d["Ay"].astype(str) + "-01", errors="coerce")
     d = d.dropna(subset=["date"]).sort_values("date")
-    pl = pd.to_numeric(d.get("Plan %"), errors="coerce")
-    rl = pd.to_numeric(d.get("Gerçek %"), errors="coerce")
+    nan_series = pd.Series([float("nan")] * len(d), index=d.index)
+    pl = pd.to_numeric(d["Plan %"], errors="coerce") if "Plan %" in d.columns else nan_series
+    rl = pd.to_numeric(d["Gerçek %"], errors="coerce") if "Gerçek %" in d.columns else nan_series
     base = d[pl.notna()]
     baseline = pd.DataFrame({"date": base["date"], "planPct": pl[pl.notna()].clip(0, 100)})
     baseline["planUSD"] = baseline["planPct"] / 100 * bac
@@ -312,3 +313,42 @@ def manual_curve(planline_df: pd.DataFrame, bac: float):
     if baseline.empty and snaps.empty:
         return empty_b, empty_s
     return baseline[["date", "planUSD", "planPct"]], snaps
+
+
+def resample_snaps(snaps: pd.DataFrame, gran: str = "Günlük") -> pd.DataFrame:
+    """Ham snapshot'ları granülariteye göre yeniden örnekler (Günlük/Haftalık/Aylık).
+    Her dönemin SON değeri alınır (kümülatif % için doğru)."""
+    if snaps is None or snaps.empty:
+        return snaps
+    s = snaps.copy()
+    s["date"] = pd.to_datetime(s["ts"]).dt.normalize()
+    s = s.sort_values("date")
+    rule = {"Günlük": "D", "Haftalık": "W", "Aylık": "ME"}.get(gran, "D")
+    if rule == "D":
+        g = s.groupby("date", as_index=False).last()
+    else:
+        g = s.set_index("date").resample(rule).last().dropna(how="all").reset_index()
+    return g
+
+
+def spi_cpi_series_gran(snaps: pd.DataFrame, gran: str = "Günlük") -> pd.DataFrame:
+    """SPI/CPI zaman serisi — granülariteye göre (Günlük/Haftalık/Aylık)."""
+    g = resample_snaps(snaps, gran)
+    if g is None or g.empty:
+        return pd.DataFrame(columns=["date", "SPI", "CPI"])
+    g = g.dropna(subset=["ev_pct"])
+    g["SPI"] = (g["ev_pct"] / g["pv_pct"]).where(g["pv_pct"] > 0)
+    ev_usd = g["ev_pct"] / 100 * g["bac"]
+    g["CPI"] = (ev_usd / g["ac_usd"]).where(g["ac_usd"] > 0)
+    return g[["date", "SPI", "CPI"]]
+
+
+def scurve_series_gran(snaps: pd.DataFrame, gran: str = "Günlük") -> pd.DataFrame:
+    """S-eğrisi gerçek/plan serisi — granülariteye göre."""
+    g = resample_snaps(snaps, gran)
+    if g is None or g.empty:
+        return pd.DataFrame(columns=["date", "pvPct", "evPct", "acPct"])
+    g = g.dropna(subset=["ev_pct"])
+    g["pvPct"] = g["pv_pct"]; g["evPct"] = g["ev_pct"]
+    g["acPct"] = (g["ac_usd"] / g["bac"] * 100).where(g["bac"] > 0, 0)
+    return g[["date", "pvPct", "evPct", "acPct"]]
