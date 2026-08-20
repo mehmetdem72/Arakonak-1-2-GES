@@ -260,11 +260,11 @@ meta = {
 }
 
 # ────────────────────── SOL RAY ──────────────────────
-PAGES = ["Komuta Paneli", "İş Kalemleri", "Maliyet & EVM", "S-Eğrisi", "Nakit & Hakediş",
-         "Risk & Kalite", "Baseline", "Stok", "İSG", "Dışa Aktar", "Kayıt Defteri", "Veri", "Ayarlar"]
-ICON = {"Komuta Paneli": "▦", "İş Kalemleri": "▤", "Maliyet & EVM": "₺", "S-Eğrisi": "📈",
-        "Nakit & Hakediş": "💵", "Risk & Kalite": "⚠", "Baseline": "📌", "Stok": "📦", "İSG": "🦺",
-        "Dışa Aktar": "⭳", "Kayıt Defteri": "📝", "Veri": "🗄", "Ayarlar": "⚙"}
+PAGES = ["Komuta Paneli", "İş Kalemleri", "S-Eğrisi", "Maliyet & EVM", "Nakit & Hakediş",
+         "Risk & Kalite", "Stok", "İSG", "Baseline", "Kayıt Defteri", "Rapor & Yedek", "Ayarlar"]
+ICON = {"Komuta Paneli": "▦", "İş Kalemleri": "▤", "S-Eğrisi": "📈", "Maliyet & EVM": "₺",
+        "Nakit & Hakediş": "💵", "Risk & Kalite": "⚠", "Stok": "📦", "İSG": "🦺",
+        "Baseline": "📌", "Kayıt Defteri": "📝", "Rapor & Yedek": "⭳", "Ayarlar": "⚙"}
 with st.sidebar:
     _logo_b64 = LOGO_WHITE if theme == "dark" else LOGO_BLACK
     if _logo_b64:
@@ -888,8 +888,9 @@ elif page == "İSG":
     if ADMIN and not edited_h.equals(hdf):
         st.session_state.hse = edited_h; storage.save_hse(conn, edited_h); st.rerun()
 
-elif page == "Dışa Aktar":
-    st.write("Tüm projenin güncel durumunu profesyonel Excel veya PDF olarak indirin.")
+elif page == "Rapor & Yedek":
+    st.markdown('<div class="panel-ttl">📊 Rapor İndir — Excel / PDF</div>', unsafe_allow_html=True)
+    st.caption("Projenin güncel durumunu paylaşmak için profesyonel Excel veya PDF raporu indirin.")
     gag = core.group_agg(base)
     state = dict(df=base, k=core.kpis(base), disc=core.disc_agg(base, "ALL"), gag=gag,
         delayed=core.delayed_items(base), stock=st.session_state.stock, hse=st.session_state.hse,
@@ -911,7 +912,8 @@ elif page == "Dışa Aktar":
             mime="application/pdf", width="stretch", type="primary")
         st.caption("Logolu yönetici raporu: KPI · grafikler · geciken işler")
 
-elif page == "Veri":
+    st.divider()
+    st.markdown('<div class="panel-ttl">💾 Yedek & Geri Yükleme</div>', unsafe_allow_html=True)
     st.warning("Streamlit Cloud deposu geçici olabilir. **Kalıcı güvence için düzenli Tam Yedek (JSON) indirin** "
                "veya aşağıdan Google Sheets kalıcı senkronunu kurun.")
     b1, b2 = st.columns(2)
